@@ -1,0 +1,30 @@
+:root {
+  font-family:  "Trebuchet MS";
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: var(--tan);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --tan: #fff8e7;
+  --coffee: #e4f4f8;
+  --slategray: #8cc1e9;
+  --spacecadet: #12284B;
+  --blueberry:#0055a0;
+}
+
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+* {
+  box-sizing: border-box;
+}

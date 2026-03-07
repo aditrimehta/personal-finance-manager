@@ -1,0 +1,35 @@
+body{
+ width: 100%;
+}
+
+.dashboard {
+  padding: 30px;
+}
+
+.dashboard-title {
+  margin-bottom: 20px;
+  color: var(--spacecadet);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.card {
+  background: var(--tan);
+  border-radius: 10px;
+  padding: 20px;
+  color: var(--spacecadet  );
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.card.wide {
+  grid-column: span 2;
+}
+
+.card.small {
+  text-align: center;
+  font-size: 20px;
+}
