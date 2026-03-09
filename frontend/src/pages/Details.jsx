@@ -1,4 +1,5 @@
 import "./Details.css";
+import Navbar from "../components/Navbar";
 import { useState } from "react";
 
 function Details() {
@@ -13,7 +14,7 @@ function Details() {
 
   return (
     <div className="details-page">
-
+<Navbar />
       <div className="details-header">
         <h1>Transaction Details</h1>
 

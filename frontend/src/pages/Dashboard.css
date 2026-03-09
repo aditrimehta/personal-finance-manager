@@ -19,7 +19,7 @@ body{
 
 .card {
   background: var(--tan);
-  border-radius: 10px;
+  border:1px solid var(--spacecadet);
   padding: 20px;
   color: var(--spacecadet  );
   box-shadow: 0 4px 10px rgba(0,0,0,0.1);

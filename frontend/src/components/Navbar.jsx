@@ -14,7 +14,7 @@ function Navbar() {
       </div>
 
       <div className="nav-center">
-        <Link to="/">Dashboard</Link>
+        <Link to="/dashboard">Dashboard</Link>
         <Link to="/details">Details</Link>
       </div>
 
@@ -30,7 +30,7 @@ function Navbar() {
           {open && (
             <div className="profile-dropdown">
               <p>User Profile</p>
-              <p>Login</p>
+              <p><Link to="/">Logout</Link></p>
             </div>
           )}
         </div>

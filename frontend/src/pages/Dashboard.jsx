@@ -1,9 +1,10 @@
 import "./Dashboard.css";
-
+import Navbar from "../components/Navbar";
 function Dashboard() {
   return (
-    <div className="dashboard">
 
+    <div className="dashboard">
+<Navbar />
       <h1 className="dashboard-title">Dashboard</h1>
 
       <div className="dashboard-grid">
