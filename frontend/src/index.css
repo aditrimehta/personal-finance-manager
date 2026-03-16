@@ -1,30 +1,112 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;600;700;900&family=Exo+2:wght@300;400;500;600&display=swap');
+
 :root {
-  font-family:  "Trebuchet MS";
-  line-height: 1.5;
+  --navy-900: #020818;
+  --navy-800: #040d1e;
+  --navy-700: #071428;
+  --navy-600: #0a1d3a;
+  --navy-500: #0e2548;
+
+  --cyan: #00e5ff;
+  --cyan-dim: #00b8cc;
+  --cyan-glow: rgba(0, 229, 255, 0.15);
+  --cyan-glow-strong: rgba(0, 229, 255, 0.35);
+
+  --acid: #39ff14;
+  --acid-dim: #2acc10;
+  --acid-glow: rgba(57, 255, 20, 0.12);
+
+  --electric: #4fc3f7;
+  --warning: #ff6b35;
+  --gold: #ffd700;
+
+  --text-primary: #e8f4f8;
+  --text-secondary: #7ab8cc;
+  --text-muted: #3d6b7a;
+
+  --border: rgba(0, 229, 255, 0.2);
+  --border-hover: rgba(0, 229, 255, 0.6);
+
+  --font-display: 'Orbitron', monospace;
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-body: 'Exo 2', sans-serif;
+
+  font-family: var(--font-body);
+  line-height: 1.6;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: var(--tan);
-
+  color: var(--text-primary);
+  background-color: var(--navy-900);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  --tan: #ffffff;
-  --coffee: #e4f4f8;
-  --slategray: #8cc1e9;
-  --spacecadet: #12284B;
-  --blueberry:#0055a0;
 }
 
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 body {
-  margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: var(--navy-900);
+  overflow-x: hidden;
 }
-* {
-  box-sizing: border-box;
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--navy-800); }
+::-webkit-scrollbar-thumb { background: var(--cyan-dim); border-radius: 2px; }
+
+/* Global animations */
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.7; }
+  94% { opacity: 1; }
+  96% { opacity: 0.8; }
+  97% { opacity: 1; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 10px var(--cyan-glow), 0 0 20px var(--cyan-glow); }
+  50% { box-shadow: 0 0 20px var(--cyan-glow-strong), 0 0 40px var(--cyan-glow); }
+}
+
+@keyframes float-up {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glitch {
+  0%, 100% { clip-path: none; transform: none; }
+  20% { clip-path: polygon(0 20%, 100% 20%, 100% 21%, 0 21%); transform: translateX(-2px); }
+  40% { clip-path: polygon(0 65%, 100% 65%, 100% 66%, 0 66%); transform: translateX(2px); }
+  60% { clip-path: polygon(0 40%, 100% 40%, 100% 42%, 0 42%); transform: translateX(-1px); }
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes grid-move {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 40px; }
+}
+
+@keyframes spin-ring {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes data-stream {
+  0% { transform: translateY(0); opacity: 0.6; }
+  100% { transform: translateY(-100%); opacity: 0; }
 }
