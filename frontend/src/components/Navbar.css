@@ -1,0 +1,81 @@
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+width:100%;
+  background-color: var(--spacecadet);
+  padding: 12px 30px;
+  color: var(--tan);
+  position: relative;
+}
+
+/* LEFT */
+.brandname{
+    color: var(--slategray);
+}
+.nav-left {
+  flex: 1;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+/* CENTER */
+
+.nav-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+}
+
+.nav-center a {
+  text-decoration: none;
+  color: var(--tan);
+  font-size: 20px;
+}
+
+.nav-center a:hover {
+  text-decoration: underline;
+}
+
+/* RIGHT */
+
+.nav-right {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  position: relative;
+}
+
+/* PROFILE ICON */
+
+.profile-icon {
+  font-size: 30px;
+  cursor: pointer;
+}
+
+/* DROPDOWN */
+
+.profile-dropdown {
+  position: absolute;
+  top: 40px;
+  right: 0;
+
+  background: var(--tan);
+  color: var(--spacecadet);
+
+  border-radius: 6px;
+  width: 140px;
+  padding: 10px 0;
+
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.profile-dropdown p {
+  padding: 8px 15px;
+  cursor: pointer;
+}
+
+.profile-dropdown p:hover {
+  background: #f3f3f3;
+}
