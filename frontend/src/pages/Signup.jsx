@@ -7,7 +7,7 @@ export default function Signup() {
   const [step, setStep]     = useState(1);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    name: "", email: "", dob: "", password: "", confirm: "",
+    fname: "",lname:"", email: "", dob: "", password: "", confirm: "",
   });
 
   const set = f => e => setForm(d => ({ ...d, [f]: e.target.value }));
@@ -22,14 +22,41 @@ export default function Signup() {
     setStep(2);
   };
 
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      navigate("/onboarding");
-    }, 1200);
-  };
+
+    try {
+        const res = await fetch("http://localhost:8000/api/users/signup/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                fname:     form.fname,
+                lname: form.lname,
+                email:    form.email,
+                dob:      form.dob,
+                password: form.password,
+            }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            // e.g. email already exists
+            alert(data.error || "Signup failed.");
+            return;
+        }
+
+        localStorage.setItem("access_token", data.tokens.access);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        navigate("/onboarding");  // go to onboarding after signup
+
+    } catch (err) {
+        alert("Could not connect to server.");
+    } finally {
+        setLoading(false);
+    }
+};
 
   return (
     <div className="auth-root">
@@ -87,9 +114,14 @@ export default function Signup() {
           {step === 1 ? (
             <form className="auth-form" onSubmit={handleNext}>
               <div className="form-field">
-                <label className="form-label">Full name</label>
-                <input type="text" className="form-input" placeholder="Aryan Kapoor"
-                  value={form.name} onChange={set("name")} required />
+                <label className="form-label">First name</label>
+                <input type="text" className="form-input" placeholder="Aryan"
+                  value={form.fname} onChange={set("fname")} required />
+              </div>
+              <div className="form-field">
+                <label className="form-label">Last name</label>
+                <input type="text" className="form-input" placeholder="Kapoor"
+                  value={form.lname} onChange={set("lname")} required />
               </div>
 
               <div className="form-field">

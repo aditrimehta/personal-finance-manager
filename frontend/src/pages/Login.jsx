@@ -10,15 +10,37 @@ export default function Login() {
 
   const set = f => e => setForm(d => ({ ...d, [f]: e.target.value }));
 
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
     setError("");
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      navigate("/dashboard");
-    }, 1200);
-  };
+
+    try {
+        const res = await fetch("http://localhost:8000/api/users/login/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: form.email, password: form.password }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            // Django returned an error — show it to user
+            setError(data.error || "Something went wrong.");
+            return;
+        }
+
+        // Save token for future API calls
+        localStorage.setItem("access_token", data.tokens.access);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        navigate("/dashboard");
+
+    } catch (err) {
+        setError("Could not connect to server. Is Django running?");
+    } finally {
+        setLoading(false);
+    }
+};
 
   return (
     <div className="auth-root">
