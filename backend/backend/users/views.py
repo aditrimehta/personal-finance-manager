@@ -4,7 +4,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 
 def get_tokens_for_user(user_id):
     # simplejwt needs a user object — we make a minimal one just for token generation
@@ -94,3 +95,119 @@ def signup_view(request):
         'tokens': get_tokens_for_user(new_user_id),
         'user': { 'id': new_user_id, 'fname': fname,'lname':lname, 'email': email }
     }, status=status.HTTP_201_CREATED)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def profile_view(request):
+    user_id = request.user.id
+
+    with connection.cursor() as cursor:
+
+        # User basic info
+        cursor.execute("""
+            SELECT first_name, last_name, email, dob, date_joined
+            FROM users_user
+            WHERE id = %s
+        """, [user_id])
+        user_row = cursor.fetchone()
+        fname, lname, email, dob, joined = user_row
+
+        # Financial preferences
+        cursor.execute("""
+            SELECT MonthlyIncome, AnnualIncome, OverallSpendingLimit, OverallSavingGoal
+            FROM preferences_userpreferences
+            WHERE CustID_id = %s
+        """, [user_id])
+        prefs = cursor.fetchone()
+
+        # Savings goal
+        cursor.execute("""
+            SELECT GoalAmount, CurrentSaved
+            FROM savings_savingstracking
+            WHERE CustID_id = %s
+            ORDER BY SavingID DESC LIMIT 1
+        """, [user_id])
+        savings = cursor.fetchone()
+
+        # User's categories
+        cursor.execute("""
+            SELECT c.CategoryName
+            FROM categories_usercategory uc
+            JOIN categories_category c ON uc.CategoryID_id = c.CategoryID
+            WHERE uc.CustID_id = %s
+        """, [user_id])
+        categories = [row[0] for row in cursor.fetchall()]
+
+        # Total spent this month (for progress bar)
+        cursor.execute("""
+            SELECT COALESCE(SUM(Amount), 0)
+            FROM transactions_transaction
+            WHERE CustID_id = %s
+              AND TransactionType = 'Debit'
+              AND DATE_TRUNC('month', Date) = DATE_TRUNC('month', CURRENT_DATE)
+        """, [user_id])
+        total_spent = float(cursor.fetchone()[0])
+
+    return Response({
+        "fname":         fname,
+        "lname":         lname,
+        "email":         email,
+        "dob":           str(dob) if dob else "",
+        "joinDate":      joined.strftime("%B %Y") if joined else "",
+        "monthlyIncome": float(prefs[0] or 0) if prefs else 0,
+        "annualIncome":  float(prefs[1] or 0) if prefs else 0,
+        "spendingLimit": float(prefs[2] or 0) if prefs else 0,
+        "savingTarget":  float(prefs[3] or 0) if prefs else 0,
+        "goalAmount":    float(savings[0] or 0) if savings else 0,
+        "savedSoFar":    float(savings[1] or 0) if savings else 0,
+        "categories":    categories,
+        "totalSpent":    total_spent,
+    })
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def profile_update(request):
+    user_id = request.user.id
+    data    = request.data
+
+    fname          = data.get('fname')
+    lname          = data.get('lname')
+    dob            = data.get('dob')
+    income_type    = data.get('incomeType')
+    income         = data.get('income')
+    spending_limit = data.get('spendingLimit')
+    saving_target  = data.get('savingTarget')
+
+    monthly_income = income if income_type == 'Monthly' else None
+    annual_income  = income if income_type == 'Annual'  else None
+
+    with connection.cursor() as cursor:
+
+        # Update user basic info
+        cursor.execute("""
+            UPDATE users_user
+            SET first_name = %s, last_name = %s, dob = %s
+            WHERE id = %s
+        """, [fname, lname, dob, user_id])
+
+        # Update preferences
+        cursor.execute("""
+            INSERT INTO preferences_userpreferences
+                (CustID_id, MonthlyIncome, AnnualIncome, OverallSpendingLimit, OverallSavingGoal)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (CustID_id) DO UPDATE SET
+                MonthlyIncome        = EXCLUDED.MonthlyIncome,
+                AnnualIncome         = EXCLUDED.AnnualIncome,
+                OverallSpendingLimit = EXCLUDED.OverallSpendingLimit,
+                OverallSavingGoal    = EXCLUDED.OverallSavingGoal
+        """, [user_id, monthly_income, annual_income, spending_limit, saving_target])
+
+        # Update savings goal
+        cursor.execute("""
+            UPDATE savings_savingstracking
+            SET GoalAmount = %s
+            WHERE CustID_id = %s
+        """, [saving_target, user_id])
+
+    return Response({'message': 'Profile updated.'})

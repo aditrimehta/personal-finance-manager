@@ -1,9 +1,18 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { clearAllCache } from "../utils/cache";
 import "./Navbar.css";
 
 function Navbar() {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    clearAllCache();
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
 
   return (
     <nav className="navbar">
@@ -20,17 +29,14 @@ function Navbar() {
 
       <div className="nav-right">
         <div className="profile-container">
-          <span
-            className="profile-icon"
-            onClick={() => setOpen(!open)}
-          >
+          <span className="profile-icon" onClick={() => setOpen(!open)}>
             👤
           </span>
 
           {open && (
             <div className="profile-dropdown">
-              <p>User Profile</p>
-              <p><Link to="/">Logout</Link></p>
+              <p><Link to="/profile" onClick={() => setOpen(false)}>User Profile</Link></p>
+              <p onClick={handleLogout} style={{ cursor: "pointer" }}>Logout</p>
             </div>
           )}
         </div>

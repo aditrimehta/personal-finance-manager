@@ -1,40 +1,94 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppLayout from "../components/AppLayout";
 import "./Profile.css";
 
-const MOCK_USER = {
-  name: "Khushi Maru",
-  email: "khushi@walletwise.io",
-  dob: "2002-05-14",
-  initials: "KM",
-  joinDate: "January 2025",
-  purpose: "Personal Use",
-  incomeType: "Monthly",
-  income: 75000,
-  savingGoal: "Emergency Fund",
-  savingTarget: 200000,
-  savedSoFar: 46550,
-  spendingLimit: 55000,
-  categories: ["Food & Dining", "Transport", "Shopping", "Subscriptions", "Health", "Utilities"],
-};
+const API = "http://localhost:8000/api/users";
 
 export default function Profile() {
-  const [editing, setEditing] = useState(false);
-  const [user, setUser] = useState(MOCK_USER);
-  const [draft, setDraft] = useState(MOCK_USER);
-  const [saved, setSaved] = useState(false);
+  const [editing, setEditing]   = useState(false);
+  const [user, setUser]         = useState(null);
+  const [draft, setDraft]       = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [saved, setSaved]       = useState(false);
 
-  const upd = f => e => setDraft(d => ({ ...d, [f]: e.target.value }));
-
-  const handleSave = () => {
-    setUser(draft);
-    setEditing(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  const token = localStorage.getItem("access_token");
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${token}`,
   };
 
-  const savingsPct = Math.round((user.savedSoFar / user.savingTarget) * 100);
-  const spentPct   = Math.round((28450 / user.spendingLimit) * 100);
+  // Fetch profile on load
+  useEffect(() => {
+    const cached   = localStorage.getItem("profile_cache");
+    const cachedAt = localStorage.getItem("profile_cache_time");
+    const cacheAge = Date.now() - parseInt(cachedAt || "0");
+    const cacheValid = cached && cacheAge < 5 * 60 * 1000;
+
+    if (cacheValid) {
+        const data = JSON.parse(cached);
+        setUser(data);
+        setDraft(data);
+        setLoading(false);
+        return;
+    }
+
+    fetch(`${API}/profile/`, { headers })
+        .then(res => res.json())
+        .then(data => {
+            setUser(data);
+            setDraft(data);
+            setLoading(false);
+            localStorage.setItem("profile_cache", JSON.stringify(data));
+            localStorage.setItem("profile_cache_time", Date.now().toString());
+        })
+        .catch(() => setLoading(false));
+}, []);
+  const upd = f => e => setDraft(d => ({ ...d, [f]: e.target.value }));
+
+  const handleSave = async () => {
+    try {
+        const res = await fetch(`${API}/profile/update/`, {
+            method: "PUT",
+            headers,
+            body: JSON.stringify({
+                fname:         draft.fname,
+                lname:         draft.lname,
+                dob:           draft.dob,
+                incomeType:    draft.monthlyIncome ? "Monthly" : "Annual",
+                income:        draft.monthlyIncome || draft.annualIncome,
+                spendingLimit: draft.spendingLimit,
+                savingTarget:  draft.savingTarget,
+            }),
+        });
+
+        if (!res.ok) { alert("Failed to save."); return; }
+
+        // Update cache with new data instead of clearing it
+        localStorage.setItem("profile_cache", JSON.stringify(draft));
+        localStorage.setItem("profile_cache_time", Date.now().toString());
+
+        // Also clear dashboard cache since income/limits changed
+        localStorage.removeItem("dashboard_cache");
+        localStorage.removeItem("dashboard_cache_time");
+
+        setUser(draft);
+        setEditing(false);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+
+    } catch {
+        alert("Could not connect to server.");
+    }
+};
+
+  if (loading) return <AppLayout><div className="profile-page"><p style={{color:"var(--text-2)"}}>Loading...</p></div></AppLayout>;
+  if (!user)   return <AppLayout><div className="profile-page"><p style={{color:"var(--red)"}}>Failed to load profile.</p></div></AppLayout>;
+
+  const savingsPct = user.savingTarget ? Math.round((user.savedSoFar / user.savingTarget) * 100) : 0;
+  const spentPct   = user.spendingLimit ? Math.round((user.totalSpent / user.spendingLimit) * 100) : 0;
+  const income     = user.monthlyIncome || user.annualIncome;
+  const incomeType = user.monthlyIncome ? "Monthly" : "Annual";
+  const initials   = `${user.fname?.[0] || ""}${user.lname?.[0] || ""}`.toUpperCase();
 
   return (
     <AppLayout>
@@ -54,23 +108,24 @@ export default function Profile() {
           )}
         </div>
 
-        {saved && (
-          <div className="save-toast fade-up">✓ Profile saved successfully</div>
-        )}
+        {saved && <div className="save-toast fade-up">✓ Profile saved successfully</div>}
 
         <div className="profile-grid">
-          {/* Identity card */}
+
+          {/* Identity */}
           <div className="card identity-card fade-up">
-            <div className="avatar-large">{user.initials}</div>
+            <div className="avatar-large">{initials}</div>
             <div className="identity-info">
               {editing ? (
-                <input className="form-input prof-name-input" value={draft.name} onChange={upd("name")} />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input className="form-input prof-name-input" value={draft.fname} onChange={upd("fname")} placeholder="First name" />
+                  <input className="form-input prof-name-input" value={draft.lname} onChange={upd("lname")} placeholder="Last name" />
+                </div>
               ) : (
-                <h2 className="prof-name">{user.name}</h2>
+                <h2 className="prof-name">{user.fname} {user.lname}</h2>
               )}
               <p className="prof-email">{user.email}</p>
               <div className="prof-tags">
-                <span className="badge badge-blue">{user.purpose}</span>
                 <span className="badge badge-amber">Member since {user.joinDate}</span>
               </div>
             </div>
@@ -79,10 +134,10 @@ export default function Profile() {
           {/* Stats strip */}
           <div className="profile-stats fade-up-1">
             {[
-              { label: "Monthly Income",   val: `₹${user.income.toLocaleString()}`,      icon: "💼", color: "blue" },
-              { label: "Spending Limit",   val: `₹${user.spendingLimit.toLocaleString()}`, icon: "🎯", color: "amber" },
-              { label: "Savings Goal",     val: `₹${user.savingTarget.toLocaleString()}`, icon: "🏦", color: "green" },
-              { label: "Saved So Far",     val: `₹${user.savedSoFar.toLocaleString()}`,   icon: "📈", color: "purple" },
+              { label: "Monthly Income",   val: `₹${income.toLocaleString()}`,            icon: "💼", color: "blue"   },
+              { label: "Spending Limit",   val: `₹${user.spendingLimit.toLocaleString()}`, icon: "🎯", color: "amber"  },
+              { label: "Savings Goal",     val: `₹${user.savingTarget.toLocaleString()}`,  icon: "🏦", color: "green"  },
+              { label: "Saved So Far",     val: `₹${user.savedSoFar.toLocaleString()}`,    icon: "📈", color: "purple" },
             ].map(s => (
               <div key={s.label} className={`card ps-card ps-${s.color}`}>
                 <span className="ps-icon">{s.icon}</span>
@@ -96,18 +151,16 @@ export default function Profile() {
           <div className="card fade-up-2">
             <p className="card-title">Personal Information</p>
             <div className="detail-grid">
-              <DetailField label="Full Name" value={user.name} editing={editing}
-                input={<input className="form-input" value={draft.name} onChange={upd("name")} />} />
+              <DetailField label="First Name" value={user.fname} editing={editing}
+                input={<input className="form-input" value={draft.fname} onChange={upd("fname")} />} />
+              <DetailField label="Last Name" value={user.lname} editing={editing}
+                input={<input className="form-input" value={draft.lname} onChange={upd("lname")} />} />
               <DetailField label="Email Address" value={user.email} editing={editing}
-                input={<input className="form-input" type="email" value={draft.email} onChange={upd("email")} />} />
-              <DetailField label="Date of Birth" value={new Date(user.dob).toLocaleDateString("en-IN", { day:"2-digit", month:"long", year:"numeric" })} editing={editing}
+                input={<input className="form-input" type="email" value={draft.email} onChange={upd("email")} disabled />} />
+              <DetailField label="Date of Birth"
+                value={user.dob ? new Date(user.dob).toLocaleDateString("en-IN", { day:"2-digit", month:"long", year:"numeric" }) : "—"}
+                editing={editing}
                 input={<input className="form-input" type="date" value={draft.dob} onChange={upd("dob")} />} />
-              <DetailField label="Account Purpose" value={user.purpose} editing={editing}
-                input={
-                  <select className="form-input" value={draft.purpose} onChange={upd("purpose")}>
-                    {["Personal Use","Family Finance","Freelancer","Small Business"].map(o => <option key={o}>{o}</option>)}
-                  </select>
-                } />
             </div>
           </div>
 
@@ -115,18 +168,34 @@ export default function Profile() {
           <div className="card fade-up-3">
             <p className="card-title">Financial Preferences</p>
             <div className="detail-grid">
-              <DetailField label="Income Type" value={user.incomeType} editing={editing}
+              <DetailField label="Income Type" value={incomeType} editing={editing}
                 input={
-                  <select className="form-input" value={draft.incomeType} onChange={upd("incomeType")}>
-                    <option>Monthly</option><option>Annual</option>
+                  <select className="form-input" value={draft.monthlyIncome ? "Monthly" : "Annual"}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setDraft(d => ({
+                        ...d,
+                        monthlyIncome: v === "Monthly" ? (d.monthlyIncome || d.annualIncome) : null,
+                        annualIncome:  v === "Annual"  ? (d.annualIncome  || d.monthlyIncome) : null,
+                      }));
+                    }}>
+                    <option>Monthly</option>
+                    <option>Annual</option>
                   </select>
                 } />
-              <DetailField label="Monthly Income" value={`₹${user.income.toLocaleString()}`} editing={editing}
-                input={<input className="form-input" type="number" value={draft.income} onChange={upd("income")} />} />
+              <DetailField label={`${incomeType} Income`} value={`₹${income.toLocaleString()}`} editing={editing}
+                input={<input className="form-input" type="number"
+                  value={draft.monthlyIncome || draft.annualIncome}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setDraft(d => ({
+                      ...d,
+                      monthlyIncome: d.monthlyIncome != null ? v : null,
+                      annualIncome:  d.annualIncome  != null ? v : null,
+                    }));
+                  }} />} />
               <DetailField label="Monthly Spending Limit" value={`₹${user.spendingLimit.toLocaleString()}`} editing={editing}
                 input={<input className="form-input" type="number" value={draft.spendingLimit} onChange={upd("spendingLimit")} />} />
-              <DetailField label="Saving Goal Name" value={user.savingGoal} editing={editing}
-                input={<input className="form-input" value={draft.savingGoal} onChange={upd("savingGoal")} />} />
               <DetailField label="Saving Target" value={`₹${user.savingTarget.toLocaleString()}`} editing={editing}
                 input={<input className="form-input" type="number" value={draft.savingTarget} onChange={upd("savingTarget")} />} />
             </div>
@@ -136,8 +205,12 @@ export default function Profile() {
           <div className="card fade-up-3">
             <p className="card-title">This Month's Progress</p>
             <div className="progress-items">
-              <ProgressItem label="Savings Goal" sub={`₹${user.savedSoFar.toLocaleString()} of ₹${user.savingTarget.toLocaleString()}`} pct={savingsPct} color="#34d399" />
-              <ProgressItem label="Spending Limit" sub={`₹28,450 of ₹${user.spendingLimit.toLocaleString()}`} pct={spentPct} color={spentPct > 80 ? "#f87171" : "#4f8ef7"} />
+              <ProgressItem label="Savings Goal"
+                sub={`₹${user.savedSoFar.toLocaleString()} of ₹${user.savingTarget.toLocaleString()}`}
+                pct={savingsPct} color="#34d399" />
+              <ProgressItem label="Spending Limit"
+                sub={`₹${user.totalSpent.toLocaleString()} of ₹${user.spendingLimit.toLocaleString()}`}
+                pct={spentPct} color={spentPct > 80 ? "#f87171" : "#4f8ef7"} />
             </div>
           </div>
 
@@ -150,6 +223,7 @@ export default function Profile() {
               ))}
             </div>
           </div>
+
         </div>
       </div>
     </AppLayout>

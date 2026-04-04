@@ -1,87 +1,88 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppLayout from "../components/AppLayout";
 import {
   AreaChart, Area, PieChart, Pie, Cell, BarChart, Bar,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
+  XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import "./Dashboard.css";
 
-// ── Mock Data ──
-const monthlyData = [
-  { month: "Aug", income: 72000, expenses: 41000 },
-  { month: "Sep", income: 75000, expenses: 38000 },
-  { month: "Oct", income: 75000, expenses: 44000 },
-  { month: "Nov", income: 80000, expenses: 36000 },
-  { month: "Dec", income: 75000, expenses: 50000 },
-  { month: "Jan", income: 78000, expenses: 42000 },
-  { month: "Feb", income: 75000, expenses: 39000 },
-  { month: "Mar", income: 75000, expenses: 28450 },
+const CATEGORY_COLORS = [
+  "#f87171","#fbbf24","#a78bfa","#22d3ee",
+  "#34d399","#4f8ef7","#fb923c","#94a3b8",
+  "#e879f9","#86efac","#fda4af","#67e8f9",
 ];
 
-const categoryData = [
-  { name: "Food",          value: 8200,  color: "#f87171", icon: "🍜" },
-  { name: "Transport",     value: 3400,  color: "#fbbf24", icon: "🚗" },
-  { name: "Shopping",      value: 5800,  color: "#a78bfa", icon: "🛍️" },
-  { name: "Entertainment", value: 2100,  color: "#22d3ee", icon: "🎮" },
-  { name: "Health",        value: 1800,  color: "#34d399", icon: "💊" },
-  { name: "Utilities",     value: 4200,  color: "#4f8ef7", icon: "⚡" },
-  { name: "Subscriptions", value: 1950,  color: "#fb923c", icon: "📡" },
-  { name: "Others",        value: 1000,  color: "#94a3b8", icon: "📦" },
-];
-
-const savingsData = [
-  { name: "Saved", value: 46550, color: "#34d399" },
-  { name: "Spent", value: 28450, color: "#4f8ef7" },
-];
-
-const weeklySpend = [
-  { day: "Mon", amount: 1200 },
-  { day: "Tue", amount: 3400 },
-  { day: "Wed", amount: 800 },
-  { day: "Thu", amount: 2200 },
-  { day: "Fri", amount: 4100 },
-  { day: "Sat", amount: 5600 },
-  { day: "Sun", amount: 1150 },
-];
-
-const recentTx = [
-  { id: 1, name: "Swiggy", cat: "Food", icon: "🍜", type: "debit",  amount: 450,   date: "Today, 1:24 PM" },
-  { id: 2, name: "Salary",  cat: "Income", icon: "💼", type: "credit", amount: 75000, date: "Mar 1" },
-  { id: 3, name: "Uber",    cat: "Transport", icon: "🚗", type: "debit", amount: 180, date: "Mar 13" },
-  { id: 4, name: "Netflix", cat: "Subscriptions", icon: "📡", type: "debit", amount: 649, date: "Mar 12" },
-  { id: 5, name: "Pharmacy",cat: "Health",  icon: "💊", type: "debit", amount: 920, date: "Mar 11" },
-];
-
-const totalIncome  = 75000;
-const totalSpent   = 28450;
-const totalSaved   = totalIncome - totalSpent;
-const savingsRate  = Math.round((totalSaved / totalIncome) * 100);
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="chart-tooltip">
-      <p className="tt-label">{label}</p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color }}>
-          {p.name}: ₹{p.value.toLocaleString()}
-        </p>
-      ))}
-    </div>
-  );
+const CATEGORY_ICONS = {
+  "Food & Dining": "🍜", "Transport": "🚗", "Shopping": "🛍️",
+  "Entertainment": "🎬", "Health": "💊", "Utilities": "⚡",
+  "Subscriptions": "📡", "Miscellaneous": "📦", "Fitness": "🏋️",
+  "Travel": "✈️", "Education": "📚", "Investments": "📈",
 };
 
 export default function Dashboard() {
-  const [period, setPeriod] = useState("Month");
+  const [period, setPeriod]   = useState("Month");
+  const [dash, setDash]       = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token     = localStorage.getItem("access_token");
+    const cached    = localStorage.getItem("dashboard_cache");
+    const cachedAt  = localStorage.getItem("dashboard_cache_time");
+
+    // Use cache if it exists and is less than 5 minutes old
+    // This handles tab switches and back navigation
+    const cacheAge  = Date.now() - parseInt(cachedAt || "0");
+    const cacheValid = cached && cacheAge < 5 * 60 * 1000;
+
+    if (cacheValid) {
+        setDash(JSON.parse(cached));
+        setLoading(false);
+        return;  // ← skip API call entirely
+    }
+
+    // No valid cache — fetch fresh from DB
+    fetch("http://localhost:8000/api/transactions/dashboard/", {
+        headers: { "Authorization": `Bearer ${token}` },
+    })
+        .then(res => res.json())
+        .then(data => {
+            setDash(data);
+            setLoading(false);
+            // Save to cache
+            localStorage.setItem("dashboard_cache", JSON.stringify(data));
+            localStorage.setItem("dashboard_cache_time", Date.now().toString());
+        })
+        .catch(() => setLoading(false));
+}, []);
+
+  if (loading) return <AppLayout><div className="dash-page"><p style={{color:"var(--text-2)"}}>Loading...</p></div></AppLayout>;
+  if (!dash)   return <AppLayout><div className="dash-page"><p style={{color:"var(--red)"}}>Failed to load data.</p></div></AppLayout>;
+
+  // Attach colors + icons to category data
+  const categoryData = dash.categoryData.map((d, i) => ({
+    ...d,
+    color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+    icon:  CATEGORY_ICONS[d.name] || "📦",
+  }));
+
+  const savingsData = [
+    { name: "Saved", value: dash.totalSaved, color: "#34d399" },
+    { name: "Spent", value: dash.totalSpent, color: "#4f8ef7" },
+  ];
+
+  const goalPct = dash.goalAmount
+    ? ((dash.currentSaved / dash.goalAmount) * 100).toFixed(1)
+    : 0;
 
   return (
     <AppLayout>
       <div className="dash-page">
+
         {/* Top bar */}
         <div className="dash-topbar">
           <div>
             <h1 className="page-title">Dashboard</h1>
-            <p className="page-subtitle">March 2025 · Financial Overview</p>
+            <p className="page-subtitle">Financial Overview</p>
           </div>
           <div className="topbar-right">
             <div className="period-toggle">
@@ -90,34 +91,28 @@ export default function Dashboard() {
                   onClick={() => setPeriod(p)}>{p}</button>
               ))}
             </div>
-            <div className="avatar-btn">AK</div>
           </div>
         </div>
 
         {/* Stat cards */}
         <div className="stats-row fade-up">
-          <StatCard label="Total Income" value="₹75,000" sub="+0% vs last month" color="blue" icon="💼" up />
-          <StatCard label="Total Spent"  value="₹28,450" sub="-10.2% vs last month" color="red"  icon="💸" up={false} />
-          <StatCard label="Total Saved"  value={`₹${totalSaved.toLocaleString()}`} sub={`${savingsRate}% savings rate`} color="green" icon="🏦" up />
-          <StatCard label="Saving Goal"  value="₹2,00,000" sub="₹46,550 saved so far" color="purple" icon="🎯" />
+          <StatCard label="Total Income" value={`₹${dash.monthlyIncome.toLocaleString()}`} sub="This month" color="blue" icon="💼" up />
+          <StatCard label="Total Spent"  value={`₹${dash.totalSpent.toLocaleString()}`}   sub="This month" color="red"  icon="💸" up={false} />
+          <StatCard label="Total Saved"  value={`₹${dash.totalSaved.toLocaleString()}`}   sub={`${dash.savingsRate}% savings rate`} color="green" icon="🏦" up />
+          <StatCard label="Saving Goal"  value={`₹${dash.goalAmount.toLocaleString()}`}   sub={`₹${dash.currentSaved.toLocaleString()} saved so far`} color="purple" icon="🎯" />
         </div>
 
-        {/* Row 2 */}
+        {/* Row 2 — Area chart + Savings donut */}
         <div className="dash-row-2 fade-up-1">
-          {/* Income vs Expenses area chart */}
           <div className="card chart-card wide">
             <div className="chart-header">
               <div>
                 <p className="card-title">Income & Expenses</p>
-                <p className="chart-big-num">₹{totalIncome.toLocaleString()} <span className="chart-big-label">this month</span></p>
-              </div>
-              <div className="chart-legend-row">
-                <span className="legend-dot" style={{ background: "#4f8ef7" }} /> Income
-                <span className="legend-dot" style={{ background: "#f87171", marginLeft: 14 }} /> Expenses
+                <p className="chart-big-num">₹{dash.monthlyIncome.toLocaleString()} <span className="chart-big-label">this month</span></p>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={monthlyData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <AreaChart data={dash.monthlyData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gIncome" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#4f8ef7" stopOpacity={0.25} />
@@ -130,14 +125,13 @@ export default function Dashboard() {
                 </defs>
                 <XAxis dataKey="month" tick={{ fill: "#4e5f80", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: "#4e5f80", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v/1000}k`} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="income" name="Income" stroke="#4f8ef7" strokeWidth={2} fill="url(#gIncome)" dot={false} />
+                <Tooltip />
+                <Area type="monotone" dataKey="income"   name="Income"   stroke="#4f8ef7" strokeWidth={2} fill="url(#gIncome)"  dot={false} />
                 <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#f87171" strokeWidth={2} fill="url(#gExpense)" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Savings donut */}
           <div className="card chart-card narrow">
             <p className="card-title">Savings Progress</p>
             <div className="donut-wrap">
@@ -149,7 +143,7 @@ export default function Dashboard() {
                 </PieChart>
               </ResponsiveContainer>
               <div className="donut-center">
-                <span className="donut-pct">{savingsRate}%</span>
+                <span className="donut-pct">{dash.savingsRate}%</span>
                 <span className="donut-sub">saved</span>
               </div>
             </div>
@@ -164,17 +158,16 @@ export default function Dashboard() {
             </div>
             <div className="goal-progress-bar">
               <div className="gpb-top">
-                <span>Goal: ₹2,00,000</span>
-                <span>23.3%</span>
+                <span>Goal: ₹{dash.goalAmount.toLocaleString()}</span>
+                <span>{goalPct}%</span>
               </div>
-              <div className="gpb-track"><div className="gpb-fill" style={{ width: "23.3%" }} /></div>
+              <div className="gpb-track"><div className="gpb-fill" style={{ width: `${goalPct}%` }} /></div>
             </div>
           </div>
         </div>
 
         {/* Row 3 */}
         <div className="dash-row-3 fade-up-2">
-          {/* Category pie */}
           <div className="card chart-card medium">
             <p className="card-title">Spending by Category</p>
             <ResponsiveContainer width="100%" height={180}>
@@ -182,7 +175,7 @@ export default function Dashboard() {
                 <Pie data={categoryData} innerRadius={45} outerRadius={68} dataKey="value" strokeWidth={0} paddingAngle={3}>
                   {categoryData.map((d, i) => <Cell key={i} fill={d.color} />)}
                 </Pie>
-                <Tooltip formatter={(v) => `₹${v.toLocaleString()}`} contentStyle={{ background: "#0e1628", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, fontSize: 12 }} />
+                <Tooltip formatter={v => `₹${v.toLocaleString()}`} contentStyle={{ background: "#0e1628", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
             <div className="cat-legend-grid">
@@ -196,60 +189,35 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Weekly bar */}
           <div className="card chart-card medium">
             <p className="card-title">This Week's Spending</p>
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={weeklySpend} margin={{ top: 4, right: 4, left: -24, bottom: 0 }} barSize={22}>
+              <BarChart data={dash.weeklyData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }} barSize={22}>
                 <XAxis dataKey="day" tick={{ fill: "#4e5f80", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: "#4e5f80", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v/1000}k`} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="amount" name="Spent" radius={[6, 6, 0, 0]}>
-                  {weeklySpend.map((_, i) => (
-                    <Cell key={i} fill={i === 5 ? "#4f8ef7" : "rgba(79,142,247,0.25)"} />
-                  ))}
-                </Bar>
+                <Tooltip />
+                <Bar dataKey="amount" name="Spent" radius={[6, 6, 0, 0]} fill="rgba(79,142,247,0.25)" />
               </BarChart>
             </ResponsiveContainer>
-            <div className="week-summary">
-              <div className="ws-item">
-                <span className="ws-label">Highest Day</span>
-                <span className="ws-val">Sat · ₹5,600</span>
-              </div>
-              <div className="ws-item">
-                <span className="ws-label">Daily Avg</span>
-                <span className="ws-val">₹{Math.round(weeklySpend.reduce((a,d) => a + d.amount, 0) / 7).toLocaleString()}</span>
-              </div>
-              <div className="ws-item">
-                <span className="ws-label">Week Total</span>
-                <span className="ws-val">₹{weeklySpend.reduce((a,d) => a + d.amount, 0).toLocaleString()}</span>
-              </div>
-            </div>
           </div>
 
-          {/* Category limits */}
           <div className="card chart-card medium">
             <p className="card-title">Category Limits</p>
             <div className="limits-list">
               {categoryData.slice(0, 5).map(d => {
-                const limit = d.value * 1.4;
-                const pct = Math.round((d.value / limit) * 100);
+                const limit = dash.categoryLimits[d.name] || d.value * 1.4;
+                const pct   = Math.round((d.value / limit) * 100);
                 const danger = pct >= 85;
                 return (
                   <div key={d.name} className="limit-row">
                     <div className="lr-top">
                       <span className="lr-icon">{d.icon}</span>
                       <span className="lr-name">{d.name}</span>
-                      <span className="lr-amounts">
-                        ₹{d.value.toLocaleString()} / ₹{Math.round(limit).toLocaleString()}
-                      </span>
+                      <span className="lr-amounts">₹{d.value.toLocaleString()} / ₹{Math.round(limit).toLocaleString()}</span>
                       <span className={`lr-pct ${danger ? "danger" : ""}`}>{pct}%</span>
                     </div>
                     <div className="lr-track">
-                      <div className="lr-fill" style={{
-                        width: `${pct}%`,
-                        background: danger ? "#f87171" : d.color
-                      }} />
+                      <div className="lr-fill" style={{ width: `${pct}%`, background: danger ? "#f87171" : d.color }} />
                     </div>
                   </div>
                 );
@@ -265,9 +233,12 @@ export default function Dashboard() {
             <a href="/details" className="view-all-link">View All →</a>
           </div>
           <div className="recent-list">
-            {recentTx.map(tx => (
+            {dash.recentTx.length === 0 && (
+              <p style={{ color: "var(--text-3)", padding: "1rem 0" }}>No transactions yet.</p>
+            )}
+            {dash.recentTx.map(tx => (
               <div key={tx.id} className="tx-row">
-                <div className="tx-icon">{tx.icon}</div>
+                <div className="tx-icon">{CATEGORY_ICONS[tx.cat] || "📦"}</div>
                 <div className="tx-info">
                   <span className="tx-name">{tx.name}</span>
                   <span className="tx-cat">{tx.cat} · {tx.date}</span>
@@ -279,11 +250,13 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+
       </div>
     </AppLayout>
   );
 }
 
+// StatCard unchanged
 function StatCard({ label, value, sub, color, icon, up }) {
   const colors = {
     blue:   { bg: "var(--blue-soft)",   text: "var(--blue)",   border: "rgba(79,142,247,0.18)" },
