@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import AppLayout from "../components/AppLayout";
 import "./Profile.css";
+import { useUserCategories } from "../hooks/useUserCategories";
 
+import AddCategoryModal from "../components/AddCategoryModal";
 const API = "http://localhost:8000/api/users";
 
 export default function Profile() {
@@ -10,7 +12,8 @@ export default function Profile() {
   const [draft, setDraft]       = useState(null);
   const [loading, setLoading]   = useState(true);
   const [saved, setSaved]       = useState(false);
-
+  const [showAddCat, setShowAddCat] = useState(false);
+  const { categories, addCategory } = useUserCategories();
   const token = localStorage.getItem("access_token");
   const headers = {
     "Content-Type": "application/json",
@@ -116,14 +119,9 @@ export default function Profile() {
           <div className="card identity-card fade-up">
             <div className="avatar-large">{initials}</div>
             <div className="identity-info">
-              {editing ? (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input className="form-input prof-name-input" value={draft.fname} onChange={upd("fname")} placeholder="First name" />
-                  <input className="form-input prof-name-input" value={draft.lname} onChange={upd("lname")} placeholder="Last name" />
-                </div>
-              ) : (
+              
                 <h2 className="prof-name">{user.fname} {user.lname}</h2>
-              )}
+              
               <p className="prof-email">{user.email}</p>
               <div className="prof-tags">
                 <span className="badge badge-amber">Member since {user.joinDate}</span>
@@ -218,14 +216,36 @@ export default function Profile() {
           <div className="card fade-up-4">
             <p className="card-title">My Spending Categories</p>
             <div className="cat-chips-prof">
-              {user.categories.map(c => (
-                <span key={c} className="cat-chip-prof">{c}</span>
-              ))}
+              {categories.map((c) => (
+  <span key={c.id} className="cat-chip-prof">
+    {c.icon} {c.name}
+  </span>
+))}
+              {editing && (
+  <div>
+    <button
+      type="button"
+      className="btn-outline"
+      style={{ fontSize: 12, padding: "10px 10px" }}
+      onClick={() => setShowAddCat(true)}
+    >
+      Add a New Category
+    </button>
+  </div>
+)}
+                
             </div>
           </div>
 
         </div>
       </div>
+     {showAddCat && (
+  <AddCategoryModal
+    onAdd={addCategory}
+    onClose={() => setShowAddCat(false)}
+  />
+)}
+            
     </AppLayout>
   );
 }

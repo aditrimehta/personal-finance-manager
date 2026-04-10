@@ -2,7 +2,7 @@ from django.db import connection
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
+from rest_framework import status
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -148,3 +148,108 @@ def dashboard_data(request):
         "monthlyData":    monthly_data,
         "weeklyData":     weekly_data,
     })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_transaction(request):
+    user_id  = request.user.id
+    data     = request.data
+
+    name      = data.get('name')
+    tx_type   = data.get('type')        # 'Debit' or 'Credit'
+    amount    = data.get('amount')
+    date      = data.get('date')
+    note      = data.get('note') or None
+    cat_name  = data.get('category')    # category name string
+
+    with connection.cursor() as cursor:
+
+        # Get category ID from name
+        cursor.execute("""
+            SELECT CategoryID FROM categories_category
+            WHERE CategoryName = %s
+        """, [cat_name])
+        row = cursor.fetchone()
+
+        if row is None:
+            return Response(
+                {'error': f'Category "{cat_name}" not found.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        cat_id = row[0]
+
+        # Insert transaction
+        cursor.execute("""
+            INSERT INTO transactions_transaction
+                (CustID_id, CategoryID_id, NameOfSpend, TransactionType, Amount, Date, Notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING TransactionID
+        """, [user_id, cat_id, name, tx_type, amount, date, note])
+
+        tx_id = cursor.fetchone()[0]
+
+    return Response({'id': tx_id, 'message': 'Transaction added.'}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_transactions(request):
+    user_id = request.user.id
+    days    = int(request.GET.get('days', 30))   # ?days=30 or ?days=90
+
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                t.TransactionID,
+                t.NameOfSpend,
+                c.CategoryName,
+                t.TransactionType,
+                t.Amount,
+                t.Date,
+                t.Notes
+            FROM transactions_transaction t
+            LEFT JOIN categories_category c ON t.CategoryID_id = c.CategoryID
+            WHERE t.CustID_id = %s
+              AND t.Date >= CURRENT_DATE - INTERVAL '%s days'
+            ORDER BY t.Date DESC, t.TransactionID DESC
+        """, [user_id, days])
+
+        columns = ['id', 'name', 'cat', 'type', 'amount', 'date', 'note']
+        rows = cursor.fetchall()
+
+    transactions = [
+        {
+            'id':     row[0],
+            'name':   row[1],
+            'cat':    row[2] or 'Uncategorized',
+            'type':   row[3].lower(),
+            'amount': float(row[4]),
+            'date':   row[5].strftime('%b %d, %Y'),
+            'note':   row[6] or '',
+        }
+        for row in rows
+    ]
+
+    return Response({'transactions': transactions})
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_transaction(request, tx_id):
+    user_id = request.user.id
+
+    with connection.cursor() as cursor:
+        # Make sure the transaction belongs to this user before deleting
+        cursor.execute("""
+            DELETE FROM transactions_transaction
+            WHERE TransactionID = %s AND CustID_id = %s
+        """, [tx_id, user_id])
+
+        if cursor.rowcount == 0:
+            return Response(
+                {'error': 'Transaction not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    return Response({'message': 'Deleted.'})

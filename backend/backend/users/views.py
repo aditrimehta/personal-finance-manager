@@ -211,3 +211,72 @@ def profile_update(request):
         """, [saving_target, user_id])
 
     return Response({'message': 'Profile updated.'})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_categories(request):
+    user_id = request.user.id
+
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT c.CategoryID, c.CategoryName
+            FROM categories_usercategory uc
+            JOIN categories_category c ON uc.CategoryID_id = c.CategoryID
+            WHERE uc.CustID_id = %s
+            ORDER BY c.CategoryName
+        """, [user_id])
+        rows = cursor.fetchall()
+
+    categories = [{'id': row[0], 'name': row[1]} for row in rows]
+    return Response({'categories': categories})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_user_category(request):
+    user_id  = request.user.id
+    cat_name = request.data.get('name', '').strip()
+
+    if not cat_name:
+        return Response(
+            {'error': 'Category name is required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    with connection.cursor() as cursor:
+        # Insert into master list if not exists
+        cursor.execute("""
+            INSERT INTO categories_category (CategoryName)
+            VALUES (%s)
+            ON CONFLICT (CategoryName) DO NOTHING
+        """, [cat_name])
+
+        # Get its ID
+        cursor.execute("""
+            SELECT CategoryID FROM categories_category WHERE CategoryName = %s
+        """, [cat_name])
+        cat_id = cursor.fetchone()[0]
+
+        # Check if user already has this category
+        cursor.execute("""
+            SELECT 1 FROM categories_usercategory
+            WHERE CustID_id = %s AND CategoryID_id = %s
+        """, [user_id, cat_id])
+
+        if cursor.fetchone():
+            return Response(
+                {'error': 'You already have this category.'},
+                status=status.HTTP_409_CONFLICT
+            )
+
+        # Link to user
+        cursor.execute("""
+            INSERT INTO categories_usercategory (CustID_id, CategoryID_id)
+            VALUES (%s, %s)
+        """, [user_id, cat_id])
+
+    # Invalidate profile cache since categories changed
+    return Response(
+        {'id': cat_id, 'name': cat_name},
+        status=status.HTTP_201_CREATED
+    )

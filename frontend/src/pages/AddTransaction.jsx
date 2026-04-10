@@ -1,26 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "../components/AppLayout";
+import AddCategoryModal from "../components/AddCategoryModal";
+import { useUserCategories } from "../hooks/useUserCategories";
 import "./AddTransaction.css";
-
-const CATEGORIES = [
-  { id: "food",          label: "Food & Dining",    icon: "🍜", color: "#f87171" },
-  { id: "transport",     label: "Transport",         icon: "🚗", color: "#fbbf24" },
-  { id: "shopping",      label: "Shopping",          icon: "🛍️", color: "#a78bfa" },
-  { id: "entertainment", label: "Entertainment",     icon: "🎬", color: "#22d3ee" },
-  { id: "health",        label: "Health",            icon: "💊", color: "#34d399" },
-  { id: "utilities",     label: "Utilities",         icon: "⚡", color: "#4f8ef7" },
-  { id: "education",     label: "Education",         icon: "📚", color: "#fb923c" },
-  { id: "travel",        label: "Travel",            icon: "✈️", color: "#e879f9" },
-  { id: "subscriptions", label: "Subscriptions",     icon: "📡", color: "#f97316" },
-  { id: "fitness",       label: "Fitness",           icon: "🏋️", color: "#10b981" },
-  { id: "investments",   label: "Investments",       icon: "📈", color: "#6366f1" },
-  { id: "income",        label: "Income",            icon: "💼", color: "#34d399" },
-  { id: "misc",          label: "Miscellaneous",     icon: "📦", color: "#94a3b8" },
-];
 
 export default function AddTransaction() {
   const navigate = useNavigate();
+  const { categories, loading: catsLoading, addCategory } = useUserCategories();
+  const [showAddCat, setShowAddCat] = useState(false);
   const [form, setForm] = useState({
     type: "debit",
     name: "",
@@ -32,24 +20,64 @@ export default function AddTransaction() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+  const set = (f) => (e) => setForm((d) => ({ ...d, [f]: e.target.value }));
 
-  const handleSubmit = (e) => {
+  // Filter categories by transaction type
+  const visibleCats = categories;
+
+  const selectedCat = categories.find((c) => c.name === form.category);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.category) return;
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+
+    const token = localStorage.getItem("access_token");
+
+    try {
+      const res = await fetch("http://localhost:8000/api/transactions/add/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: form.name,
+          type: form.type === "debit" ? "Debit" : "Credit",
+          amount: form.amount,
+          date: form.date,
+          note: form.note,
+          category: form.category, // already the full name
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed.");
+        return;
+      }
+
+      localStorage.removeItem("dashboard_cache");
+      localStorage.removeItem("dashboard_cache_time");
       setSubmitted(true);
-    }, 1000);
+    } catch {
+      alert("Could not connect to server.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const reset = () => {
-    setForm({ type: "debit", name: "", amount: "", category: "", date: new Date().toISOString().slice(0, 10), note: "" });
+    setForm({
+      type: "debit",
+      name: "",
+      amount: "",
+      category: "",
+      date: new Date().toISOString().slice(0, 10),
+      note: "",
+    });
     setSubmitted(false);
   };
-
-  const selectedCat = CATEGORIES.find(c => c.id === form.category);
 
   if (submitted) {
     return (
@@ -61,11 +89,19 @@ export default function AddTransaction() {
             </div>
             <h2 className="success-title">Transaction Added!</h2>
             <p className="success-sub">
-              {form.type === "credit" ? "+" : "−"}₹{Number(form.amount).toLocaleString()} · {selectedCat?.label}
+              {form.type === "credit" ? "+" : "−"}₹
+              {Number(form.amount).toLocaleString()} · {selectedCat?.name}
             </p>
             <div className="success-btns">
-              <button className="btn-outline" onClick={reset}>Add Another</button>
-              <button className="btn-primary-add" onClick={() => navigate("/details")}>View Transactions</button>
+              <button className="btn-outline" onClick={reset}>
+                Add Another
+              </button>
+              <button
+                className="btn-primary-add"
+                onClick={() => navigate("/details")}
+              >
+                View Transactions
+              </button>
             </div>
           </div>
         </div>
@@ -84,18 +120,18 @@ export default function AddTransaction() {
         </div>
 
         <div className="add-layout fade-up">
-          {/* Form */}
+          {/* Left — form */}
           <div className="add-form-col">
             <form onSubmit={handleSubmit} className="add-form">
-
-              {/* Type toggle */}
               <div className="form-section">
                 <label className="form-label">Transaction Type</label>
                 <div className="type-toggle-big">
                   <button
                     type="button"
                     className={`ttb-btn ${form.type === "debit" ? "active-debit" : ""}`}
-                    onClick={() => setForm(f => ({ ...f, type: "debit" }))}
+                    onClick={() =>
+                      setForm((f) => ({ ...f, type: "debit", category: "" }))
+                    }
                   >
                     <span className="ttb-icon">💸</span>
                     <span className="ttb-label">Expense</span>
@@ -104,7 +140,9 @@ export default function AddTransaction() {
                   <button
                     type="button"
                     className={`ttb-btn ${form.type === "credit" ? "active-credit" : ""}`}
-                    onClick={() => setForm(f => ({ ...f, type: "credit" }))}
+                    onClick={() =>
+                      setForm((f) => ({ ...f, type: "credit", category: "" }))
+                    }
                   >
                     <span className="ttb-icon">💰</span>
                     <span className="ttb-label">Income</span>
@@ -113,7 +151,6 @@ export default function AddTransaction() {
                 </div>
               </div>
 
-              {/* Amount */}
               <div className="form-section">
                 <label className="form-label">Amount</label>
                 <div className="amount-input-wrap">
@@ -130,12 +167,12 @@ export default function AddTransaction() {
                 </div>
                 {form.amount && (
                   <p className="amount-words">
-                    ₹{Number(form.amount).toLocaleString()} · {form.type === "credit" ? "Incoming" : "Outgoing"}
+                    ₹{Number(form.amount).toLocaleString()} ·{" "}
+                    {form.type === "credit" ? "Incoming" : "Outgoing"}
                   </p>
                 )}
               </div>
 
-              {/* Name */}
               <div className="form-section">
                 <label className="form-label">Name of Transaction</label>
                 <input
@@ -148,7 +185,6 @@ export default function AddTransaction() {
                 />
               </div>
 
-              {/* Date */}
               <div className="form-section">
                 <label className="form-label">Date</label>
                 <input
@@ -160,9 +196,10 @@ export default function AddTransaction() {
                 />
               </div>
 
-              {/* Note */}
               <div className="form-section">
-                <label className="form-label">Note <span className="optional">(optional)</span></label>
+                <label className="form-label">
+                  Note <span className="optional">(optional)</span>
+                </label>
                 <textarea
                   className="form-textarea"
                   placeholder="Any additional details..."
@@ -172,14 +209,17 @@ export default function AddTransaction() {
                 />
               </div>
 
-              {/* Submit */}
               <button
                 type="submit"
                 className={`submit-btn ${loading ? "loading" : ""} ${form.type === "credit" ? "credit" : ""}`}
                 disabled={!form.category || loading}
               >
                 {loading ? (
-                  <span className="loading-dots"><span /><span /><span /></span>
+                  <span className="loading-dots">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
                 ) : (
                   `Save ${form.type === "credit" ? "Income" : "Expense"}`
                 )}
@@ -187,29 +227,65 @@ export default function AddTransaction() {
             </form>
           </div>
 
-          {/* Category picker */}
+          {/* Right — category picker */}
           <div className="category-col">
             <div className="card">
-              <label className="form-label" style={{ marginBottom: 14, display: "block" }}>
-                Select Category {!form.category && <span className="optional">· required</span>}
-              </label>
-              <div className="cat-grid-add">
-                {CATEGORIES.filter(c => form.type === "credit" ? c.id === "income" || c.id === "investments" || c.id === "misc" : c.id !== "income").map(cat => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    className={`cat-card-add ${form.category === cat.id ? "selected" : ""}`}
-                    style={form.category === cat.id ? { borderColor: cat.color, background: cat.color + "18" } : {}}
-                    onClick={() => setForm(f => ({ ...f, category: cat.id }))}
-                  >
-                    <span className="cca-icon">{cat.icon}</span>
-                    <span className="cca-label">{cat.label}</span>
-                  </button>
-                ))}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 14,
+                }}
+              >
+                <label className="form-label" style={{ marginBottom: 0 }}>
+                  Select Category{" "}
+                  {!form.category && (
+                    <span className="optional">· required</span>
+                  )}
+                </label>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  style={{ fontSize: 12, padding: "10px 10px",margin:"10px" }}
+                  onClick={() => setShowAddCat(true)}
+                >
+                  Add a New Category
+                </button>
               </div>
+
+              {catsLoading ? (
+                <p style={{ color: "var(--text-3)", fontSize: 13 }}>
+                  Loading categories...
+                </p>
+              ) : (
+                <div className="cat-grid-add">
+                  {visibleCats.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      className={`cat-card-add ${form.category === cat.name ? "selected" : ""}`}
+                      style={
+                        form.category === cat.name
+                          ? {
+                              borderColor: cat.color,
+                              background: cat.color + "18",
+                            }
+                          : {}
+                      }
+                      onClick={() =>
+                        setForm((f) => ({ ...f, category: cat.name }))
+                      }
+                    >
+                      <span className="cca-icon">{cat.icon}</span>
+                      <span className="cca-label">{cat.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Preview card */}
+            {/* Preview */}
             {form.amount && form.name && form.category && (
               <div className="preview-card fade-up">
                 <p className="preview-label">Preview</p>
@@ -217,10 +293,13 @@ export default function AddTransaction() {
                   <div className="preview-icon">{selectedCat?.icon}</div>
                   <div className="preview-info">
                     <span className="preview-name">{form.name}</span>
-                    <span className="preview-cat">{selectedCat?.label} · {form.date}</span>
+                    <span className="preview-cat">
+                      {selectedCat?.name} · {form.date}
+                    </span>
                   </div>
                   <span className={`preview-amount ${form.type}`}>
-                    {form.type === "credit" ? "+" : "−"}₹{Number(form.amount).toLocaleString()}
+                    {form.type === "credit" ? "+" : "−"}₹
+                    {Number(form.amount).toLocaleString()}
                   </span>
                 </div>
                 {form.note && <p className="preview-note">"{form.note}"</p>}
@@ -229,6 +308,13 @@ export default function AddTransaction() {
           </div>
         </div>
       </div>
+
+      {showAddCat && (
+        <AddCategoryModal
+          onAdd={addCategory}
+          onClose={() => setShowAddCat(false)}
+        />
+      )}
     </AppLayout>
   );
 }
