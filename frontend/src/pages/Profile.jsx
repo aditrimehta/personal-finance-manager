@@ -2,17 +2,25 @@ import { useState, useEffect } from "react";
 import AppLayout from "../components/AppLayout";
 import "./Profile.css";
 import { useUserCategories } from "../hooks/useUserCategories";
-
 import AddCategoryModal from "../components/AddCategoryModal";
+
 const API = "http://localhost:8000/api/users";
+const PREF_API = "http://localhost:8000/api/preferences";
 
 export default function Profile() {
-  const [editing, setEditing]   = useState(false);
-  const [user, setUser]         = useState(null);
-  const [draft, setDraft]       = useState(null);
-  const [loading, setLoading]   = useState(true);
-  const [saved, setSaved]       = useState(false);
-  const [showAddCat, setShowAddCat] = useState(false);
+  const [editing, setEditing]         = useState(false);
+  const [user, setUser]               = useState(null);
+  const [draft, setDraft]             = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [saved, setSaved]             = useState(false);
+  const [showAddCat, setShowAddCat]   = useState(false);
+
+  // Category limits state
+  const [catLimits, setCatLimits]     = useState({});       // { "Food & Dining": 5000, ... }
+  const [editingLimits, setEditingLimits] = useState(false);
+  const [limitDraft, setLimitDraft]   = useState({});
+  const [savingLimits, setSavingLimits] = useState(false);
+
   const { categories, addCategory } = useUserCategories();
   const token = localStorage.getItem("access_token");
   const headers = {
@@ -20,7 +28,7 @@ export default function Profile() {
     "Authorization": `Bearer ${token}`,
   };
 
-  // Fetch profile on load
+  // Fetch profile on load (with caching)
   useEffect(() => {
     const cached   = localStorage.getItem("profile_cache");
     const cachedAt = localStorage.getItem("profile_cache_time");
@@ -28,61 +36,113 @@ export default function Profile() {
     const cacheValid = cached && cacheAge < 5 * 60 * 1000;
 
     if (cacheValid) {
-        const data = JSON.parse(cached);
-        setUser(data);
-        setDraft(data);
-        setLoading(false);
-        return;
+      const data = JSON.parse(cached);
+      setUser(data);
+      setDraft(data);
+      // Restore category limits from cache if present
+      if (data.categoryLimits) setCatLimits(data.categoryLimits);
+      setLoading(false);
+      return;
     }
 
     fetch(`${API}/profile/`, { headers })
-        .then(res => res.json())
-        .then(data => {
-            setUser(data);
-            setDraft(data);
-            setLoading(false);
-            localStorage.setItem("profile_cache", JSON.stringify(data));
-            localStorage.setItem("profile_cache_time", Date.now().toString());
-        })
-        .catch(() => setLoading(false));
-}, []);
+      .then(res => res.json())
+      .then(data => {
+        setUser(data);
+        setDraft(data);
+        if (data.categoryLimits) setCatLimits(data.categoryLimits);
+        setLoading(false);
+        localStorage.setItem("profile_cache", JSON.stringify(data));
+        localStorage.setItem("profile_cache_time", Date.now().toString());
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  // Fetch category limits separately (they may not be in profile response yet)
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${PREF_API}/category-limit/`, {
+      headers: { "Authorization": `Bearer ${token}` },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.limits) setCatLimits(data.limits);
+      })
+      .catch(() => {});
+  }, []);
+
   const upd = f => e => setDraft(d => ({ ...d, [f]: e.target.value }));
 
   const handleSave = async () => {
     try {
-        const res = await fetch(`${API}/profile/update/`, {
-            method: "PUT",
-            headers,
-            body: JSON.stringify({
-                fname:         draft.fname,
-                lname:         draft.lname,
-                dob:           draft.dob,
-                incomeType:    draft.monthlyIncome ? "Monthly" : "Annual",
-                income:        draft.monthlyIncome || draft.annualIncome,
-                spendingLimit: draft.spendingLimit,
-                savingTarget:  draft.savingTarget,
-            }),
-        });
+      const res = await fetch(`${API}/profile/update/`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          fname:         draft.fname,
+          lname:         draft.lname,
+          dob:           draft.dob,
+          incomeType:    draft.monthlyIncome ? "Monthly" : "Annual",
+          income:        draft.monthlyIncome || draft.annualIncome,
+          spendingLimit: draft.spendingLimit,
+          savingTarget:  draft.savingTarget,
+        }),
+      });
 
-        if (!res.ok) { alert("Failed to save."); return; }
+      if (!res.ok) { alert("Failed to save."); return; }
 
-        // Update cache with new data instead of clearing it
-        localStorage.setItem("profile_cache", JSON.stringify(draft));
-        localStorage.setItem("profile_cache_time", Date.now().toString());
+      const updatedData = { ...draft, categoryLimits: catLimits };
+      localStorage.setItem("profile_cache", JSON.stringify(updatedData));
+      localStorage.setItem("profile_cache_time", Date.now().toString());
+      localStorage.removeItem("dashboard_cache");
+      localStorage.removeItem("dashboard_cache_time");
 
-        // Also clear dashboard cache since income/limits changed
-        localStorage.removeItem("dashboard_cache");
-        localStorage.removeItem("dashboard_cache_time");
-
-        setUser(draft);
-        setEditing(false);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2500);
-
+      setUser(draft);
+      setEditing(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
     } catch {
-        alert("Could not connect to server.");
+      alert("Could not connect to server.");
     }
-};
+  };
+
+  const handleSaveLimits = async () => {
+    setSavingLimits(true);
+    try {
+      // Save each changed limit (only non-empty ones)
+      const entries = Object.entries(limitDraft).filter(([, v]) => v !== "" && v !== null);
+      for (const [category, limit] of entries) {
+        await fetch(`${PREF_API}/category-limit/`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ category, limit: Number(limit) }),
+        });
+      }
+
+      const merged = { ...catLimits, ...Object.fromEntries(entries.map(([k, v]) => [k, Number(v)])) };
+      setCatLimits(merged);
+
+      // Update profile cache to include new limits
+      const cached = localStorage.getItem("profile_cache");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const updated = { ...parsed, categoryLimits: merged };
+        localStorage.setItem("profile_cache", JSON.stringify(updated));
+        localStorage.setItem("profile_cache_time", Date.now().toString());
+      }
+      // Invalidate dashboard cache so limits refresh there too
+      localStorage.removeItem("dashboard_cache");
+      localStorage.removeItem("dashboard_cache_time");
+
+      setEditingLimits(false);
+      setLimitDraft({});
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      alert("Could not connect to server.");
+    }
+    setSavingLimits(false);
+  };
 
   if (loading) return <AppLayout><div className="profile-page"><p style={{color:"var(--text-2)"}}>Loading...</p></div></AppLayout>;
   if (!user)   return <AppLayout><div className="profile-page"><p style={{color:"var(--red)"}}>Failed to load profile.</p></div></AppLayout>;
@@ -92,6 +152,14 @@ export default function Profile() {
   const income     = user.monthlyIncome || user.annualIncome;
   const incomeType = user.monthlyIncome ? "Monthly" : "Annual";
   const initials   = `${user.fname?.[0] || ""}${user.lname?.[0] || ""}`.toUpperCase();
+
+  const CATEGORY_ICONS = {
+    "Food & Dining": "🍜", "Transport": "🚗", "Shopping": "🛍️",
+    "Entertainment": "🎬", "Health": "💊", "Utilities": "⚡",
+    "Subscriptions": "📡", "Miscellaneous": "📦", "Fitness": "🏋️",
+    "Travel": "✈️", "Education": "📚", "Investments": "📈",
+    "Income": "💼", "Uncategorized": "📦",
+  };
 
   return (
     <AppLayout>
@@ -111,7 +179,7 @@ export default function Profile() {
           )}
         </div>
 
-        {saved && <div className="save-toast fade-up">✓ Profile saved successfully</div>}
+        {saved && <div className="save-toast fade-up">✓ Saved successfully</div>}
 
         <div className="profile-grid">
 
@@ -119,9 +187,7 @@ export default function Profile() {
           <div className="card identity-card fade-up">
             <div className="avatar-large">{initials}</div>
             <div className="identity-info">
-              
-                <h2 className="prof-name">{user.fname} {user.lname}</h2>
-              
+              <h2 className="prof-name">{user.fname} {user.lname}</h2>
               <p className="prof-email">{user.email}</p>
               <div className="prof-tags">
                 <span className="badge badge-amber">Member since {user.joinDate}</span>
@@ -217,35 +283,91 @@ export default function Profile() {
             <p className="card-title">My Spending Categories</p>
             <div className="cat-chips-prof">
               {categories.map((c) => (
-  <span key={c.id} className="cat-chip-prof">
-    {c.icon} {c.name}
-  </span>
-))}
+                <span key={c.id} className="cat-chip-prof">
+                  {c.icon} {c.name}
+                </span>
+              ))}
               {editing && (
-  <div>
-    <button
-      type="button"
-      className="btn-outline"
-      style={{ fontSize: 12, padding: "10px 10px" }}
-      onClick={() => setShowAddCat(true)}
-    >
-      Add a New Category
-    </button>
-  </div>
-)}
-                
+                <button
+                  type="button"
+                  className="btn-outline"
+                  style={{ fontSize: 12, padding: "10px 10px" }}
+                  onClick={() => setShowAddCat(true)}
+                >
+                  Add a New Category
+                </button>
+              )}
             </div>
+          </div>
+
+          {/* Category Limits */}
+          <div className="card fade-up-4">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <p className="card-title" style={{ marginBottom: 0 }}>Category Limits</p>
+              {!editingLimits ? (
+                <button className="edit-btn" style={{ fontSize: 12, padding: "6px 14px" }}
+                  onClick={() => { setLimitDraft({}); setEditingLimits(true); }}>
+                  Edit Limits
+                </button>
+              ) : (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="cancel-btn" style={{ fontSize: 12, padding: "6px 14px" }}
+                    onClick={() => { setEditingLimits(false); setLimitDraft({}); }}>
+                    Cancel
+                  </button>
+                  <button className="save-btn" style={{ fontSize: 12, padding: "6px 14px" }}
+                    onClick={handleSaveLimits} disabled={savingLimits}>
+                    {savingLimits ? "Saving…" : "Save Limits"}
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="cat-limits-grid">
+              {categories.length === 0 && (
+                <p style={{ color: "var(--text-3)", fontSize: 13 }}>No categories yet.</p>
+              )}
+              {categories.map(c => {
+                const icon    = CATEGORY_ICONS[c.name] || "📦";
+                const current = catLimits[c.name];
+                const draft   = limitDraft[c.name];
+                return (
+                  <div key={c.name} className="cat-limit-row">
+                    <span className="clr-icon">{icon}</span>
+                    <span className="clr-name">{c.name}</span>
+                    {editingLimits ? (
+                      <input
+                        className="form-input clr-input"
+                        type="number"
+                        min="0"
+                        placeholder={current ? `₹${current.toLocaleString()}` : "No limit"}
+                        value={draft !== undefined ? draft : (current || "")}
+                        onChange={e => setLimitDraft(prev => ({ ...prev, [c.name]: e.target.value }))}
+                      />
+                    ) : (
+                      <span className="clr-val">
+                        {current ? `₹${Number(current).toLocaleString()}` : <span style={{ color: "var(--text-3)" }}>Not set</span>}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {!editingLimits && (
+              <p style={{ color: "var(--text-3)", fontSize: 12, marginTop: 12 }}>
+                These monthly limits are shown on your Dashboard's Category Limits card.
+              </p>
+            )}
           </div>
 
         </div>
       </div>
-     {showAddCat && (
-  <AddCategoryModal
-    onAdd={addCategory}
-    onClose={() => setShowAddCat(false)}
-  />
-)}
-            
+
+      {showAddCat && (
+        <AddCategoryModal
+          onAdd={addCategory}
+          onClose={() => setShowAddCat(false)}
+        />
+      )}
     </AppLayout>
   );
 }

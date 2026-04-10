@@ -12,6 +12,10 @@ const CATEGORY_ICONS = {
   "Income": "💼", "Uncategorized": "📦",
 };
 
+const CACHE_KEY      = (days) => `transactions_cache_${days}`;
+const CACHE_TIME_KEY = (days) => `transactions_cache_time_${days}`;
+const CACHE_TTL      = 5 * 60 * 1000; // 5 minutes
+
 export default function Details() {
   const navigate = useNavigate();
   const { categories: userCats, addCategory } = useUserCategories();
@@ -26,16 +30,32 @@ export default function Details() {
 
   const token = localStorage.getItem("access_token");
 
-  // Fetch transactions when days changes
+  // Fetch transactions with caching
   useEffect(() => {
+    const cacheKey     = CACHE_KEY(days);
+    const cacheTimeKey = CACHE_TIME_KEY(days);
+    const cached       = localStorage.getItem(cacheKey);
+    const cachedAt     = localStorage.getItem(cacheTimeKey);
+    const cacheAge     = Date.now() - parseInt(cachedAt || "0");
+    const cacheValid   = cached && cacheAge < CACHE_TTL;
+
+    if (cacheValid) {
+      setTxList(JSON.parse(cached));
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     fetch(`http://localhost:8000/api/transactions/list/?days=${days}`, {
       headers: { "Authorization": `Bearer ${token}` },
     })
       .then(res => res.json())
       .then(data => {
-        setTxList(data.transactions || []);
+        const txs = data.transactions || [];
+        setTxList(txs);
         setLoading(false);
+        localStorage.setItem(cacheKey, JSON.stringify(txs));
+        localStorage.setItem(cacheTimeKey, Date.now().toString());
       })
       .catch(() => setLoading(false));
   }, [days]);
@@ -49,10 +69,15 @@ export default function Details() {
 
       if (!res.ok) { alert("Failed to delete."); return; }
 
-      setTxList(prev => prev.filter(t => t.id !== id));
+      const newList = txList.filter(t => t.id !== id);
+      setTxList(newList);
       setDeleteId(null);
 
-      // Invalidate dashboard cache
+      // Update the transactions cache with the new list (so back-nav stays consistent)
+      localStorage.setItem(CACHE_KEY(days), JSON.stringify(newList));
+      localStorage.setItem(CACHE_TIME_KEY(days), Date.now().toString());
+
+      // Invalidate dashboard cache since totals changed
       localStorage.removeItem("dashboard_cache");
       localStorage.removeItem("dashboard_cache_time");
 
@@ -96,7 +121,6 @@ export default function Details() {
                 </button>
               ))}
             </div>
-            
             <button className="add-tx-btn" onClick={() => navigate("/add")}>
               + Add Transaction
             </button>
@@ -223,8 +247,6 @@ export default function Details() {
             </div>
           </div>
         )}
-
-        
 
       </div>
     </AppLayout>

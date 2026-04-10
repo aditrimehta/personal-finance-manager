@@ -19,46 +19,84 @@ const CATEGORY_ICONS = {
   "Travel": "✈️", "Education": "📚", "Investments": "📈",
 };
 
+const API = "http://localhost:8000";
+
 export default function Dashboard() {
-  const [period, setPeriod]   = useState("Month");
-  const [dash, setDash]       = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [period, setPeriod]       = useState("Month");
+  const [dash, setDash]           = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [limitModal, setLimitModal] = useState(null); // { name, currentLimit }
+  const [limitInput, setLimitInput] = useState("");
+  const [savingLimits, setSavingLimits] = useState(false);
+
+  const token = localStorage.getItem("access_token");
 
   useEffect(() => {
-    const token     = localStorage.getItem("access_token");
-    const cached    = localStorage.getItem("dashboard_cache");
-    const cachedAt  = localStorage.getItem("dashboard_cache_time");
-
-    // Use cache if it exists and is less than 5 minutes old
-    // This handles tab switches and back navigation
-    const cacheAge  = Date.now() - parseInt(cachedAt || "0");
+    const cached   = localStorage.getItem("dashboard_cache");
+    const cachedAt = localStorage.getItem("dashboard_cache_time");
+    const cacheAge = Date.now() - parseInt(cachedAt || "0");
     const cacheValid = cached && cacheAge < 5 * 60 * 1000;
 
     if (cacheValid) {
-        setDash(JSON.parse(cached));
-        setLoading(false);
-        return;  // ← skip API call entirely
+      setDash(JSON.parse(cached));
+      setLoading(false);
+      return;
     }
 
-    // No valid cache — fetch fresh from DB
-    fetch("http://localhost:8000/api/transactions/dashboard/", {
-        headers: { "Authorization": `Bearer ${token}` },
+    fetch(`${API}/api/transactions/dashboard/`, {
+      headers: { "Authorization": `Bearer ${token}` },
     })
-        .then(res => res.json())
-        .then(data => {
-            setDash(data);
-            setLoading(false);
-            // Save to cache
-            localStorage.setItem("dashboard_cache", JSON.stringify(data));
-            localStorage.setItem("dashboard_cache_time", Date.now().toString());
-        })
-        .catch(() => setLoading(false));
-}, []);
+      .then(res => res.json())
+      .then(data => {
+        setDash(data);
+        setLoading(false);
+        localStorage.setItem("dashboard_cache", JSON.stringify(data));
+        localStorage.setItem("dashboard_cache_time", Date.now().toString());
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const openLimitModal = (catName, currentLimit) => {
+    setLimitModal({ name: catName, currentLimit });
+    setLimitInput(currentLimit && currentLimit !== Math.round(currentLimit * 0.714) ? currentLimit : "");
+  };
+
+  const handleSaveLimit = async () => {
+    if (!limitInput || isNaN(limitInput) || Number(limitInput) <= 0) {
+      alert("Please enter a valid limit amount.");
+      return;
+    }
+    setSavingLimits(true);
+    try {
+      const res = await fetch(`${API}/api/preferences/category-limit/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ category: limitModal.name, limit: Number(limitInput) }),
+      });
+
+      if (!res.ok) { alert("Failed to save limit."); setSavingLimits(false); return; }
+
+      // Update local dash state + cache
+      const updatedLimits = { ...dash.categoryLimits, [limitModal.name]: Number(limitInput) };
+      const updatedDash   = { ...dash, categoryLimits: updatedLimits };
+      setDash(updatedDash);
+      localStorage.setItem("dashboard_cache", JSON.stringify(updatedDash));
+      localStorage.setItem("dashboard_cache_time", Date.now().toString());
+
+      setLimitModal(null);
+      setLimitInput("");
+    } catch {
+      alert("Could not connect to server.");
+    }
+    setSavingLimits(false);
+  };
 
   if (loading) return <AppLayout><div className="dash-page"><p style={{color:"var(--text-2)"}}>Loading...</p></div></AppLayout>;
   if (!dash)   return <AppLayout><div className="dash-page"><p style={{color:"var(--red)"}}>Failed to load data.</p></div></AppLayout>;
 
-  // Attach colors + icons to category data
   const categoryData = dash.categoryData.map((d, i) => ({
     ...d,
     color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
@@ -70,8 +108,9 @@ export default function Dashboard() {
     { name: "Spent", value: dash.totalSpent, color: "#4f8ef7" },
   ];
 
-  const goalPct = dash.goalAmount
-    ? ((dash.currentSaved / dash.goalAmount) * 100).toFixed(1)
+  // Fix: goal % is currentSaved vs goalAmount (not savingsRate which is income-based)
+  const goalPct = dash.goalAmount && dash.goalAmount > 0
+    ? Math.min(((dash.currentSaved / dash.goalAmount) * 100), 100).toFixed(1)
     : 0;
 
   return (
@@ -156,6 +195,7 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+            {/* Fixed: uses currentSaved vs goalAmount */}
             <div className="goal-progress-bar">
               <div className="gpb-top">
                 <span>Goal: ₹{dash.goalAmount.toLocaleString()}</span>
@@ -201,24 +241,41 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
 
+          {/* Category Limits — now scrollable, all categories, with set limit button */}
           <div className="card chart-card medium">
             <p className="card-title">Category Limits</p>
-            <div className="limits-list">
-              {categoryData.slice(0, 5).map(d => {
-                const limit = dash.categoryLimits[d.name] || d.value * 1.4;
-                const pct   = Math.round((d.value / limit) * 100);
-                const danger = pct >= 85;
+            <div className="limits-list limits-list-scroll">
+              {categoryData.length === 0 && (
+                <p style={{ color: "var(--text-3)", fontSize: 13 }}>No spending categories this month.</p>
+              )}
+              {categoryData.map(d => {
+                const hasLimit = dash.categoryLimits && dash.categoryLimits[d.name] != null;
+                const limit    = hasLimit ? dash.categoryLimits[d.name] : null;
+                const pct      = limit ? Math.round((d.value / limit) * 100) : null;
+                const danger   = pct != null && pct >= 85;
                 return (
                   <div key={d.name} className="limit-row">
                     <div className="lr-top">
                       <span className="lr-icon">{d.icon}</span>
                       <span className="lr-name">{d.name}</span>
-                      <span className="lr-amounts">₹{d.value.toLocaleString()} / ₹{Math.round(limit).toLocaleString()}</span>
-                      <span className={`lr-pct ${danger ? "danger" : ""}`}>{pct}%</span>
+                      {hasLimit ? (
+                        <>
+                          <span className="lr-amounts">₹{d.value.toLocaleString()} / ₹{Math.round(limit).toLocaleString()}</span>
+                          <span className={`lr-pct ${danger ? "danger" : ""}`}>{pct}%</span>
+                          <button className="lr-edit-btn" title="Edit limit" onClick={() => openLimitModal(d.name, limit)}>✎</button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="lr-amounts" style={{ color: "var(--text-3)" }}>₹{d.value.toLocaleString()} · no limit</span>
+                          <button className="lr-set-btn" onClick={() => openLimitModal(d.name, null)}>Set limit</button>
+                        </>
+                      )}
                     </div>
-                    <div className="lr-track">
-                      <div className="lr-fill" style={{ width: `${pct}%`, background: danger ? "#f87171" : d.color }} />
-                    </div>
+                    {hasLimit && (
+                      <div className="lr-track">
+                        <div className="lr-fill" style={{ width: `${Math.min(pct, 100)}%`, background: danger ? "#f87171" : d.color }} />
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -252,11 +309,37 @@ export default function Dashboard() {
         </div>
 
       </div>
+
+      {/* Set / Edit Limit Modal */}
+      {limitModal && (
+        <div className="modal-overlay" onClick={() => setLimitModal(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3 className="modal-title">
+              {limitModal.currentLimit ? "Edit" : "Set"} Limit — {limitModal.name}
+            </h3>
+            <p className="modal-desc">Monthly spending limit for this category</p>
+            <input
+              className="modal-input"
+              type="number"
+              min="1"
+              placeholder="e.g. 5000"
+              value={limitInput}
+              onChange={e => setLimitInput(e.target.value)}
+              autoFocus
+            />
+            <div className="modal-btns">
+              <button className="modal-cancel" onClick={() => setLimitModal(null)}>Cancel</button>
+              <button className="modal-confirm" onClick={handleSaveLimit} disabled={savingLimits}>
+                {savingLimits ? "Saving..." : "Save Limit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
 
-// StatCard unchanged
 function StatCard({ label, value, sub, color, icon, up }) {
   const colors = {
     blue:   { bg: "var(--blue-soft)",   text: "var(--blue)",   border: "rgba(79,142,247,0.18)" },
