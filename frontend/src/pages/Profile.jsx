@@ -284,7 +284,7 @@ export default function Profile() {
             <div className="cat-chips-prof">
               {categories.map((c) => (
                 <span key={c.id} className="cat-chip-prof">
-                  {c.icon} {c.name}
+                  {c.name}
                 </span>
               ))}
               {editing && (
@@ -327,12 +327,10 @@ export default function Profile() {
                 <p style={{ color: "var(--text-3)", fontSize: 13 }}>No categories yet.</p>
               )}
               {categories.map(c => {
-                const icon    = CATEGORY_ICONS[c.name] || "📦";
                 const current = catLimits[c.name];
                 const draft   = limitDraft[c.name];
                 return (
                   <div key={c.name} className="cat-limit-row">
-                    <span className="clr-icon">{icon}</span>
                     <span className="clr-name">{c.name}</span>
                     {editingLimits ? (
                       <input

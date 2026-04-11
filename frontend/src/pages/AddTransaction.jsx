@@ -59,6 +59,8 @@ export default function AddTransaction() {
 
       localStorage.removeItem("dashboard_cache");
       localStorage.removeItem("dashboard_cache_time");
+      localStorage.removeItem("transactions_cache_all");
+      localStorage.removeItem("transactions_cache_time_all");
       setSubmitted(true);
     } catch {
       alert("Could not connect to server.");
@@ -277,7 +279,6 @@ export default function AddTransaction() {
                         setForm((f) => ({ ...f, category: cat.name }))
                       }
                     >
-                      <span className="cca-icon">{cat.icon}</span>
                       <span className="cca-label">{cat.name}</span>
                     </button>
                   ))}
@@ -290,7 +291,6 @@ export default function AddTransaction() {
               <div className="preview-card fade-up">
                 <p className="preview-label">Preview</p>
                 <div className="preview-row">
-                  <div className="preview-icon">{selectedCat?.icon}</div>
                   <div className="preview-info">
                     <span className="preview-name">{form.name}</span>
                     <span className="preview-cat">

@@ -4,40 +4,28 @@ import AppLayout from "../components/AppLayout";
 import { useUserCategories } from "../hooks/useUserCategories";
 import "./Details.css";
 
-const CATEGORY_ICONS = {
-  "Food & Dining": "🍜", "Transport": "🚗", "Shopping": "🛍️",
-  "Entertainment": "🎬", "Health": "💊", "Utilities": "⚡",
-  "Subscriptions": "📡", "Miscellaneous": "📦", "Fitness": "🏋️",
-  "Travel": "✈️", "Education": "📚", "Investments": "📈",
-  "Income": "💼", "Uncategorized": "📦",
-};
-
-const CACHE_KEY      = (days) => `transactions_cache_${days}`;
-const CACHE_TIME_KEY = (days) => `transactions_cache_time_${days}`;
-const CACHE_TTL      = 5 * 60 * 1000; // 5 minutes
+const CACHE_KEY      = "transactions_cache_all";
+const CACHE_TIME_KEY = "transactions_cache_time_all";
+const CACHE_TTL      = 5 * 60 * 1000;
 
 export default function Details() {
   const navigate = useNavigate();
-  const { categories: userCats, addCategory } = useUserCategories();
+  const { categories: userCats } = useUserCategories();
 
-  const [txList, setTxList]           = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [days, setDays]               = useState(30);
-  const [filter, setFilter]           = useState("All");
-  const [typeFilter, setTypeFilter]   = useState("All");
-  const [search, setSearch]           = useState("");
-  const [deleteId, setDeleteId]       = useState(null);
+  const [txList, setTxList]         = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [filter, setFilter]         = useState("All");
+  const [typeFilter, setTypeFilter] = useState("All");
+  const [search, setSearch]         = useState("");
+  const [deleteId, setDeleteId]     = useState(null);
 
   const token = localStorage.getItem("access_token");
 
-  // Fetch transactions with caching
   useEffect(() => {
-    const cacheKey     = CACHE_KEY(days);
-    const cacheTimeKey = CACHE_TIME_KEY(days);
-    const cached       = localStorage.getItem(cacheKey);
-    const cachedAt     = localStorage.getItem(cacheTimeKey);
-    const cacheAge     = Date.now() - parseInt(cachedAt || "0");
-    const cacheValid   = cached && cacheAge < CACHE_TTL;
+    const cached     = localStorage.getItem(CACHE_KEY);
+    const cachedAt   = localStorage.getItem(CACHE_TIME_KEY);
+    const cacheAge   = Date.now() - parseInt(cachedAt || "0");
+    const cacheValid = cached && cacheAge < CACHE_TTL;
 
     if (cacheValid) {
       setTxList(JSON.parse(cached));
@@ -46,7 +34,7 @@ export default function Details() {
     }
 
     setLoading(true);
-    fetch(`http://localhost:8000/api/transactions/list/?days=${days}`, {
+    fetch(`http://localhost:8000/api/transactions/list/`, {
       headers: { "Authorization": `Bearer ${token}` },
     })
       .then(res => res.json())
@@ -54,11 +42,11 @@ export default function Details() {
         const txs = data.transactions || [];
         setTxList(txs);
         setLoading(false);
-        localStorage.setItem(cacheKey, JSON.stringify(txs));
-        localStorage.setItem(cacheTimeKey, Date.now().toString());
+        localStorage.setItem(CACHE_KEY, JSON.stringify(txs));
+        localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
       })
       .catch(() => setLoading(false));
-  }, [days]);
+  }, []);
 
   const handleDelete = async (id) => {
     try {
@@ -73,11 +61,8 @@ export default function Details() {
       setTxList(newList);
       setDeleteId(null);
 
-      // Update the transactions cache with the new list (so back-nav stays consistent)
-      localStorage.setItem(CACHE_KEY(days), JSON.stringify(newList));
-      localStorage.setItem(CACHE_TIME_KEY(days), Date.now().toString());
-
-      // Invalidate dashboard cache since totals changed
+      localStorage.setItem(CACHE_KEY, JSON.stringify(newList));
+      localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
       localStorage.removeItem("dashboard_cache");
       localStorage.removeItem("dashboard_cache_time");
 
@@ -86,7 +71,6 @@ export default function Details() {
     }
   };
 
-  // Category chips from user's actual categories
   const cats = ["All", ...userCats.map(c => c.name)];
 
   const filtered = txList.filter(t => {
@@ -105,29 +89,16 @@ export default function Details() {
     <AppLayout>
       <div className="details-page">
 
-        {/* Header */}
         <div className="dash-topbar">
           <div>
             <h1 className="page-title">Transactions</h1>
-            <p className="page-subtitle">Last {days} days · {filtered.length} entries</p>
+            <p className="page-subtitle">{filtered.length} entries</p>
           </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <div className="type-toggle">
-              {[30, 90].map(d => (
-                <button key={d}
-                  className={`type-btn ${days === d ? "active" : ""}`}
-                  onClick={() => { setDays(d); setFilter("All"); }}>
-                  {d}d
-                </button>
-              ))}
-            </div>
-            <button className="add-tx-btn" onClick={() => navigate("/add")}>
-              + Add Transaction
-            </button>
-          </div>
+          <button className="add-tx-btn" onClick={() => navigate("/add")}>
+            + Add Transaction
+          </button>
         </div>
 
-        {/* Summary strip */}
         <div className="tx-summary-strip fade-up">
           <div className="tss-item green">
             <span className="tss-label">Total Incoming</span>
@@ -152,7 +123,6 @@ export default function Details() {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="filters-bar fade-up-1">
           <div className="search-box">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -169,7 +139,6 @@ export default function Details() {
           </div>
         </div>
 
-        {/* Category chips */}
         <div className="cat-chips fade-up-1">
           {cats.map(c => (
             <button key={c} className={`cat-chip ${filter === c ? "active" : ""}`}
@@ -177,7 +146,6 @@ export default function Details() {
           ))}
         </div>
 
-        {/* Table */}
         <div className="card tx-table-card fade-up-2">
           {loading ? (
             <p style={{ color: "var(--text-2)", padding: "2rem" }}>Loading transactions...</p>
@@ -205,7 +173,6 @@ export default function Details() {
                     <tr key={tx.id} className="tx-tr">
                       <td>
                         <div className="tx-name-cell">
-                          <span className="tx-ico">{CATEGORY_ICONS[tx.cat] || "📦"}</span>
                           <span className="tx-n">{tx.name}</span>
                         </div>
                       </td>
@@ -234,7 +201,6 @@ export default function Details() {
           )}
         </div>
 
-        {/* Delete modal */}
         {deleteId && (
           <div className="modal-overlay" onClick={() => setDeleteId(null)}>
             <div className="modal-box" onClick={e => e.stopPropagation()}>

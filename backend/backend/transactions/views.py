@@ -196,7 +196,6 @@ def add_transaction(request):
 @permission_classes([IsAuthenticated])
 def get_transactions(request):
     user_id = request.user.id
-    days    = int(request.GET.get('days', 30))   # ?days=30 or ?days=90
 
     with connection.cursor() as cursor:
         cursor.execute("""
@@ -211,11 +210,8 @@ def get_transactions(request):
             FROM transactions_transaction t
             LEFT JOIN categories_category c ON t.CategoryID_id = c.CategoryID
             WHERE t.CustID_id = %s
-              AND t.Date >= CURRENT_DATE - INTERVAL '%s days'
             ORDER BY t.Date DESC, t.TransactionID DESC
-        """, [user_id, days])
-
-        columns = ['id', 'name', 'cat', 'type', 'amount', 'date', 'note']
+        """, [user_id])
         rows = cursor.fetchall()
 
     transactions = [
@@ -232,7 +228,6 @@ def get_transactions(request):
     ]
 
     return Response({'transactions': transactions})
-
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])

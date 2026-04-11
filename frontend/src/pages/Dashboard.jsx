@@ -12,20 +12,12 @@ const CATEGORY_COLORS = [
   "#e879f9","#86efac","#fda4af","#67e8f9",
 ];
 
-const CATEGORY_ICONS = {
-  "Food & Dining": "🍜", "Transport": "🚗", "Shopping": "🛍️",
-  "Entertainment": "🎬", "Health": "💊", "Utilities": "⚡",
-  "Subscriptions": "📡", "Miscellaneous": "📦", "Fitness": "🏋️",
-  "Travel": "✈️", "Education": "📚", "Investments": "📈",
-};
-
 const API = "http://localhost:8000";
 
 export default function Dashboard() {
-  const [period, setPeriod]       = useState("Month");
   const [dash, setDash]           = useState(null);
   const [loading, setLoading]     = useState(true);
-  const [limitModal, setLimitModal] = useState(null); // { name, currentLimit }
+  const [limitModal, setLimitModal] = useState(null);
   const [limitInput, setLimitInput] = useState("");
   const [savingLimits, setSavingLimits] = useState(false);
 
@@ -58,7 +50,7 @@ export default function Dashboard() {
 
   const openLimitModal = (catName, currentLimit) => {
     setLimitModal({ name: catName, currentLimit });
-    setLimitInput(currentLimit && currentLimit !== Math.round(currentLimit * 0.714) ? currentLimit : "");
+    setLimitInput(currentLimit || "");
   };
 
   const handleSaveLimit = async () => {
@@ -79,7 +71,6 @@ export default function Dashboard() {
 
       if (!res.ok) { alert("Failed to save limit."); setSavingLimits(false); return; }
 
-      // Update local dash state + cache
       const updatedLimits = { ...dash.categoryLimits, [limitModal.name]: Number(limitInput) };
       const updatedDash   = { ...dash, categoryLimits: updatedLimits };
       setDash(updatedDash);
@@ -100,7 +91,6 @@ export default function Dashboard() {
   const categoryData = dash.categoryData.map((d, i) => ({
     ...d,
     color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
-    icon:  CATEGORY_ICONS[d.name] || "📦",
   }));
 
   const savingsData = [
@@ -108,7 +98,6 @@ export default function Dashboard() {
     { name: "Spent", value: dash.totalSpent, color: "#4f8ef7" },
   ];
 
-  // Fix: goal % is currentSaved vs goalAmount (not savingsRate which is income-based)
   const goalPct = dash.goalAmount && dash.goalAmount > 0
     ? Math.min(((dash.currentSaved / dash.goalAmount) * 100), 100).toFixed(1)
     : 0;
@@ -122,14 +111,6 @@ export default function Dashboard() {
           <div>
             <h1 className="page-title">Dashboard</h1>
             <p className="page-subtitle">Financial Overview</p>
-          </div>
-          <div className="topbar-right">
-            <div className="period-toggle">
-              {["Week", "Month", "Year"].map(p => (
-                <button key={p} className={`period-btn ${period === p ? "active" : ""}`}
-                  onClick={() => setPeriod(p)}>{p}</button>
-              ))}
-            </div>
           </div>
         </div>
 
@@ -195,7 +176,6 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-            {/* Fixed: uses currentSaved vs goalAmount */}
             <div className="goal-progress-bar">
               <div className="gpb-top">
                 <span>Goal: ₹{dash.goalAmount.toLocaleString()}</span>
@@ -241,7 +221,6 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
 
-          {/* Category Limits — now scrollable, all categories, with set limit button */}
           <div className="card chart-card medium">
             <p className="card-title">Category Limits</p>
             <div className="limits-list limits-list-scroll">
@@ -256,7 +235,6 @@ export default function Dashboard() {
                 return (
                   <div key={d.name} className="limit-row">
                     <div className="lr-top">
-                      <span className="lr-icon">{d.icon}</span>
                       <span className="lr-name">{d.name}</span>
                       {hasLimit ? (
                         <>
@@ -295,7 +273,6 @@ export default function Dashboard() {
             )}
             {dash.recentTx.map(tx => (
               <div key={tx.id} className="tx-row">
-                <div className="tx-icon">{CATEGORY_ICONS[tx.cat] || "📦"}</div>
                 <div className="tx-info">
                   <span className="tx-name">{tx.name}</span>
                   <span className="tx-cat">{tx.cat} · {tx.date}</span>
@@ -310,7 +287,6 @@ export default function Dashboard() {
 
       </div>
 
-      {/* Set / Edit Limit Modal */}
       {limitModal && (
         <div className="modal-overlay" onClick={() => setLimitModal(null)}>
           <div className="modal-box" onClick={e => e.stopPropagation()}>
