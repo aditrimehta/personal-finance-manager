@@ -37,6 +37,8 @@ venv\Scripts\activate
 Mac/Linux:
 source venv/bin/activate
 
+then cd backend again
+
 4. Install dependencies
 
 pip install -r requirements.txt
