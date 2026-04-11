@@ -33,7 +33,7 @@ export default function Landing() {
 
           <p className="hero-desc">
             Track spending, set savings goals, and understand where your money
-            goes — all in one beautifully simple dashboard.
+            goes: all in one beautifully simple dashboard.
           </p>
 
           <div className="hero-actions">
@@ -44,22 +44,6 @@ export default function Landing() {
             <Link to="/login" className="btn-ghost-landing">Sign in</Link>
           </div>
 
-          <div className="hero-stats">
-            <div className="hs-item">
-              <span className="hs-num">128K+</span>
-              <span className="hs-label">Users</span>
-            </div>
-            <div className="hs-sep" />
-            <div className="hs-item">
-              <span className="hs-num">₹2.4B+</span>
-              <span className="hs-label">Tracked monthly</span>
-            </div>
-            <div className="hs-sep" />
-            <div className="hs-item">
-              <span className="hs-num">Free</span>
-              <span className="hs-label">Always</span>
-            </div>
-          </div>
         </div>
 
         {/* Preview card */}
@@ -106,20 +90,6 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="float-card fc-1">
-            <span className="fc-icon">🏦</span>
-            <div>
-              <p className="fc-val">62%</p>
-              <p className="fc-lbl">Savings rate</p>
-            </div>
-          </div>
-          <div className="float-card fc-2">
-            <span className="fc-icon">🎯</span>
-            <div>
-              <p className="fc-val">₹46,550</p>
-              <p className="fc-lbl">Goal progress</p>
-            </div>
-          </div>
         </div>
       </main>
 
