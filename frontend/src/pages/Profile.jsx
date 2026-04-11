@@ -14,6 +14,7 @@ export default function Profile() {
   const [loading, setLoading]         = useState(true);
   const [saved, setSaved]             = useState(false);
   const [showAddCat, setShowAddCat]   = useState(false);
+  const [goalCompleted, setGoalCompleted] = useState(false);
 
   // Category limits state
   const [catLimits, setCatLimits]     = useState({});       // { "Food & Dining": 5000, ... }
@@ -153,13 +154,6 @@ export default function Profile() {
   const incomeType = user.monthlyIncome ? "Monthly" : "Annual";
   const initials   = `${user.fname?.[0] || ""}${user.lname?.[0] || ""}`.toUpperCase();
 
-  const CATEGORY_ICONS = {
-    "Food & Dining": "🍜", "Transport": "🚗", "Shopping": "🛍️",
-    "Entertainment": "🎬", "Health": "💊", "Utilities": "⚡",
-    "Subscriptions": "📡", "Miscellaneous": "📦", "Fitness": "🏋️",
-    "Travel": "✈️", "Education": "📚", "Investments": "📈",
-    "Income": "💼", "Uncategorized": "📦",
-  };
 
   return (
     <AppLayout>
@@ -207,6 +201,7 @@ export default function Profile() {
                 <span className="ps-icon">{s.icon}</span>
                 <span className="ps-val">{s.val}</span>
                 <span className="ps-label">{s.label}</span>
+                
               </div>
             ))}
           </div>
@@ -350,11 +345,6 @@ export default function Profile() {
                 );
               })}
             </div>
-            {!editingLimits && (
-              <p style={{ color: "var(--text-3)", fontSize: 12, marginTop: 12 }}>
-                These monthly limits are shown on your Dashboard's Category Limits card.
-              </p>
-            )}
           </div>
 
         </div>

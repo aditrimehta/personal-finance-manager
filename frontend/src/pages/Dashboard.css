@@ -337,7 +337,7 @@
 
 /* Scrollable limits list */
 .limits-list-scroll {
-  max-height: 220px;
+  max-height: 280px;
   overflow-y: auto;
   padding-right: 4px;
   scrollbar-width: thin;
@@ -438,4 +438,29 @@
   text-align: right;
   flex-shrink: 0;
 }
- 
+ .dash-row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+/* Remove white hover rectangle on bars */
+.recharts-bar-rectangle:focus { outline: none; }
+.recharts-bar-background-rectangle { fill: transparent !important; }
+.recharts-rectangle.recharts-bar-background { fill: transparent !important; }
+
+/* Dark tooltip text */
+.recharts-default-tooltip {
+  background: #1a2235 !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 8px !important;
+}
+
+.recharts-tooltip-label {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.recharts-tooltip-item {
+  color: #c8d4f0 !important;
+}

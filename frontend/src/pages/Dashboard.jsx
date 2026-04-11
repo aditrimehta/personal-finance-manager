@@ -212,11 +212,11 @@ export default function Dashboard() {
           <div className="card chart-card medium">
             <p className="card-title">This Week's Spending</p>
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={dash.weeklyData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }} barSize={22}>
+              <BarChart data={dash.weeklyData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }} barSize={22} barCategoryGap="30%">
                 <XAxis dataKey="day" tick={{ fill: "#4e5f80", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: "#4e5f80", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v/1000}k`} />
                 <Tooltip />
-                <Bar dataKey="amount" name="Spent" radius={[6, 6, 0, 0]} fill="rgba(79,142,247,0.25)" />
+                <Bar dataKey="amount" name="Spent" radius={[6, 6, 0, 0]} fill="rgba(79,142,247,0.25)" cursor="default"/>
               </BarChart>
             </ResponsiveContainer>
           </div>
