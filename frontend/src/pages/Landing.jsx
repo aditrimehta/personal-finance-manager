@@ -1,7 +1,12 @@
 import { Link } from "react-router-dom";
 import "./Landing.css";
+import { useEffect } from "react";
+import { clearAllCache } from "../utils/cache";
 
 export default function Landing() {
+  useEffect(() => {
+    clearAllCache();
+  }, []);
   return (
     <div className="landing-root">
       <div className="landing-glow" />
