@@ -19,8 +19,8 @@ export function clearAllCache() {
     localStorage.removeItem("profile_cache");
     localStorage.removeItem("profile_cache_time");
     localStorage.removeItem("categories_cache");
-localStorage.removeItem("transaction_cache_all");
-localStorage.removeItem("transaction_cache_time_all");
+localStorage.removeItem("transactions_cache_all");
+localStorage.removeItem("transactions_cache_time_all");
 localStorage.removeItem("categories_cache_time");
 localStorage.removeItem("user");
 localStorage.removeItem("access_token");
